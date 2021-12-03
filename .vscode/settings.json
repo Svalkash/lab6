@@ -9,6 +9,7 @@
         "types.h": "c",
         "type_traits": "c",
         "typeinfo": "c",
-        "6s_types.h": "c"
+        "6s_types.h": "c",
+        "shm.h": "c"
     }
 }

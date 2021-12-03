@@ -1,5 +1,5 @@
-#ifndef __6S_M_FILE_H__
-#define __6S_M_FILE_H__
+#ifndef __6S_M_FILE_C__
+#define __6S_M_FILE_C__
 
 verb_t verb; //how many we want to see in the log
 
@@ -21,12 +21,15 @@ int cfgread(char *cfgfilename)
     close(cfgfile);
 }
 
-int logopen() {
+int logopen()
+{
     char *logfilename;
     time_t t;
     char *timestr;
 
-    block_signal(SIGHUP);
+    int is_blocked = check_mask(SIGHUP);
+    if (!is_blocked)
+        block_signal(SIGHUP);
     if (logfile != -1)
     {
         logwrite("Closing log file to reopen");
@@ -42,19 +45,22 @@ int logopen() {
     strcat(logfilename, timestr);
     strcat(logfilename, ".txt");
     CHECK(logfile = creat(logfilename, 0666), -1, "Error while opening log file")
-    unblock_signal(SIGHUP);
+    if (!is_blocked)
+        unblock_signal(SIGHUP);
     free(logfilename);
 }
 
-int logwrite(char *str, verb_t print_v) {
+int logwrite(char *str, verb_t print_v)
+{
     time_t t;
     char *timestr;
 
     if (print_v > verb)
         return 0;
 
-    //block SIGHUP
-    block_signal(SIGHUP);
+    int is_blocked = check_mask(SIGHUP);
+    if (!is_blocked)
+        block_signal(SIGHUP);
     //write to log
     time(&t);
     timestr = ctime(&t);
@@ -65,11 +71,13 @@ int logwrite(char *str, verb_t print_v) {
     if (verb == V_SCREEN)
         printf("[%d] %s\n", print_v, str); //print this trash on the screen
     //unblock SIGHUP
-    unblock_signal(SIGHUP);
+    if (!is_blocked)
+        unblock_signal(SIGHUP);
     return 1;
 }
 
-int logwrite_int(char *str, long num, verb_t print_v) {
+int logwrite_int(char *str, long num, verb_t print_v)
+{
     char outstr[BUFSIZE];
 
     sprintf(outstr, "%s %d", str, num);
