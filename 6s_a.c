@@ -48,7 +48,7 @@ int decode(char *cmdstr, int sock)
     if (!cmd)
     {
         w_logwrite("A: [ERROR] Empty command!", V_ALL);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Empty command!");
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Empty command!\n");
         return 0;
     }
     //finally decode the command
@@ -60,31 +60,31 @@ int decode(char *cmdstr, int sock)
     if (dec_cmd == CMD_UNKN)
     {
         w_logwrite("A: [ERROR] Unknown command!", V_ALL);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Unknown command!");
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Unknown command!\n");
         return 0;
     }
     if (!arg)
     {
         w_logwrite("A: [ERROR] No arguments for the command!", V_ALL);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] No arguments for the command!");
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] No arguments for the command!\n");
         return 0;
     }
     if (trash)
     {
         w_logwrite("A: [ERROR] Trash at the end of the command!", V_ALL);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Trash at the end of the command!");
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Trash at the end of the command!\n");
         return 0;
     }
     if ((dec_cmd == CMD_START || dec_cmd == CMD_JOIN) && strlen(arg) > NAMELEN - 1)
     {
         w_logwrite("A: [ERROR] Password is too long!", V_ALL);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Password is too long!");
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Password is too long!\n");
         return 0;
     }
     if (dec_cmd == CMD_SHOT || dec_cmd == CMD_SAVE) && (!digits_only(arg) || itoa(arg) < 0 || itoa(arg) > 10))
     {
         w_logwrite("A: [ERROR] Invalid zone number!", V_ALL);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Invalid zone number!");
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Invalid zone number!\n");
         return 0;
     }
     //here we look at the current state, so lock it
@@ -95,7 +95,7 @@ int decode(char *cmdstr, int sock)
     {
     GS_INIT:
         w_logwrite("A: [ERROR] WHO HAS SENT THE COMMAND BEFORE SERVER START?!", V_MAIN);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] WHO HAS SENT THE COMMAND BEFORE SERVER START?!");
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] WHO HAS SENT THE COMMAND BEFORE SERVER START?!\n");
         return 0;
     GS_NO:
         if (dec_cmd == CMD_START)
@@ -117,20 +117,20 @@ int decode(char *cmdstr, int sock)
             w_logwrite("A: New password:", V_ALL);
             w_logwrite(arg, V_ALL);
             w_logwrite("A: Waiting for player 2...", V_ALL);
-            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Game successfully created, waiting for player 2..."); //notify player 1
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Game successfully created, waiting for player 2...\n"); //notify player 1
             return 1;
         }
         else
         {
             w_logwrite("A: [ERROR] Game is not created yet!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game is not created yet!");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game is not created yet!\n");
             return 0;
         }
     GS_CONNECT:
         if (dec_cmd == CMD_START)
         {
             w_logwrite("A: [DENIED] Game is already created, but you can join it.", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already created, but you can join it.");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already created, but you can join it.\n");
             return 0;
         }
         else if (dec_cmd == CMD_JOIN)
@@ -139,7 +139,7 @@ int decode(char *cmdstr, int sock)
             if (strcmp(state->pass, arg))
             {
                 w_logwrite("A: [DENIED] Password mismatch!", V_ALL);
-                send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Password mismatch!");
+                send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Password mismatch!\n");
                 return 0;
             }
             //password is good
@@ -147,55 +147,55 @@ int decode(char *cmdstr, int sock)
             state->p2_sock = sock;     //mark current player as first
             state->p2_state = PS_INIT; //he will WAIT
             w_logwrite("A: Player 2 joined, waiting for G...", V_ALL);
-            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 joined.");                   //notify player 1
-            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Клиент: Синхронизация... (loading)"); //notify player 1
-            send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Клиент: Синхронизация... (loading)"); //notify player 2
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 joined.\n");                   //notify player 1
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Клиент: Синхронизация... (loading)\n"); //notify player 1
+            send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Клиент: Синхронизация... (loading)\n"); //notify player 2
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_GEN, "");                                    //start generator
         }
         else
         {
             w_logwrite("A: [ERROR] Game is not started yet!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game is not started yet!");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game is not started yet!\n");
             return 0;
         }
     GS_GEN:
         if (dec_cmd == CMD_START || dec_cmd == CMD_JOIN)
         {
             w_logwrite("A: [DENIED] Game is already started, please wait.", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.\n");
             return 0;
         }
         else
         {
             w_logwrite("A: [ERROR] Please wait.", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Please wait.");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Please wait.\n");
             return 0;
         }
     GS_GAME:
         if (dec_cmd == CMD_START || dec_cmd == CMD_JOIN)
         {
             w_logwrite("A: [DENIED] Game is already started, please wait.", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.\n");
             return 0;
         }
         //game command - shot/save
         if (player == 1 && state->p1_st != PS_INIT || player == 2 && state->p2_st != PS_INIT)
         {
             w_logwrite("A: [DENIED] You have already made your turn!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You have already made your turn!");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You have already made your turn!\n");
             return 0;
         }
         //can send commands
         if (dec_cmd == CMD_SHOT && turn != player)
         {
             w_logwrite("A: [DENIED] You are attacking!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are attacking!");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are attacking!\n");
             return 0;
         }
         if (dec_cmd == CMD_SAVE && turn == player)
         {
             w_logwrite("A: [DENIED] You are defending!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are defending!");
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are defending!\n");
             return 0;
         }
         //command is ok, now do it and send it
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
             int startpos;
 
             w_logwrite("A: Waiting for command", V_DEBUG);
-            CHECK(rcv_msg(msq_w, BUFSIZE - 1, getpid(), MSG_NOERROR, &sock, &msg_cmd, msg), -1, "Error receiving message")
+            CHECK(rcv_msg(msq_w, BUFSIZE - 1, getpid(), MSG_NOERROR, &sock, &msg_cmd, msg), -1, "A: Error receiving message")
             if (msg_cmd == CMD_STOP)
             {
                 stop_flag = 0;

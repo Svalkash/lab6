@@ -110,7 +110,9 @@ typedef struct msg_s
 typedef struct shmstr_s
 {
     int p1_sock, p2_sock; //player 1 & 2 sockets
-    char[NAMELEN] pass;
+    char pass[NAMELEN];
+    int first_turn;
+    int min_rounds;
     gstate_t g_st;
     pstate_t p1_st, p2_st;
     int p1_zone, p2_zone;
