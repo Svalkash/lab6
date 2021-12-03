@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "in.h": "c",
+        "un.h": "c",
+        "unistd.h": "c",
+        "ip.h": "c",
+        "socket.h": "c",
+        "stat.h": "c",
+        "types.h": "c",
+        "type_traits": "c",
+        "typeinfo": "c",
+        "6s_types.h": "c"
+    }
+}
