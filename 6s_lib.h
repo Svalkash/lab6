@@ -68,18 +68,34 @@ int eat_msgs(int msq, int type) {
     CHECK_EAGAIN("Error while receiving message")
 }
 
-char *print_state(int player, shmstr_t *state, char *buf, int gameover) {
+inline void semfix(int sem, int val) { semctl(sem, 0, SETVAL, val); }
+
+int randint() {
+    //YES, I KNOW THAT SIZEOF(INT) = 4!
+    int rdesc;
+    char buf[sizeof(int)];
+    int rint = 0;
+
+    rdesc = open("/dev/random", O_RDONLY);
+    read(rdesc, buf, sizeof(int));
+    close(rdesc);
+    for (int i = 0; i < sizeof(int); ++i)
+        rint += (int)buf[i] << 8 * i;
+    return rint;
+}
+
+char *print_gameover(char *buf, int gameover, int player, int p1_score, int p2_score) {
     char scorestr[BUFSIZE];
     int score_y, score_e;
 
     switch(player) {
     case 1:
-        score_y = state->p1_score;
-        score_e = state->p2_score;
+        score_y = p1_score
+        score_e = p2_score;
         break;
     case 2:
-        score_y = state->p2_score;
-        score_e = state->p1_score;
+        score_y = p2_score;
+        score_e = p1_score;
         break;
     default:
         printf("Error: trying to send game state to non-player");
@@ -106,23 +122,7 @@ char *print_state(int player, shmstr_t *state, char *buf, int gameover) {
     return buf;
 }
 
-inline void semfix(int sem, int val) { semctl(sem, 0, SETVAL, val); }
-
-int randint() {
-    //YES, I KNOW THAT SIZEOF(INT) = 4!
-    int rdesc;
-    char buf[sizeof(int)];
-    int rint = 0;
-
-    rdesc = open("/dev/random", O_RDONLY);
-    read(rdesc, buf, sizeof(int));
-    close(rdesc);
-    for (int i = 0; i < sizeof(int); ++i)
-        rint += (int)buf[i] << 8 * i;
-    return rint;
-}
-
-char *turnmsg(char *buf, int round, int turn, int attack) {
+char *print_turn(char *buf, int round, int turn, int attack) {
     char str[BUFSIZE];
 
     strcat(buf, "--------------------\n");
@@ -137,6 +137,22 @@ char *turnmsg(char *buf, int round, int turn, int attack) {
         strcat(buf, " You are defending! \n");
     strcat(buf, "--------------------\n");
     strcat(buf, "Choose your zone:   \n");
+    return buf;
+}
+
+char *print_res(char *buf, int result, int p1_score, int p2_score) {
+    char str[BUFSIZE];
+
+    strcat(buf, "--------------------\n");
+    if (result == 0)
+        strcat(buf, "Не попал      (MISS)\n");
+    else if (result == 1)
+        strcat(buf, "Не пробил     (SAVE)\n");
+    else
+        strcat(buf, "Есть пробитие (GOAL)\n");
+    strcat(buf, "--------------------\n");
+    sprintf(str, "SCORE | P1: %d  P2: %d\n", p1_score, p2_score);
+    strcat(buf, "--------------------\n");
     return buf;
 }
 

@@ -82,11 +82,11 @@ int decode(char *cmdstr, int sock)
         return 0;
     }
     if (dec_cmd == CMD_SHOT || dec_cmd == CMD_SAVE) && (!digits_only(arg) || itoa(arg) < 0 || itoa(arg) > 10))
-    {
-        w_logwrite("A: [ERROR] Invalid zone number!", V_ALL);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Invalid zone number!\n");
-        return 0;
-    }
+        {
+            w_logwrite("A: [ERROR] Invalid zone number!", V_ALL);
+            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Invalid zone number!\n");
+            return 0;
+        }
     //here we look at the current state, so lock it
     semop(shm_sem, sop_lock, 2);
     player = (sock == state->p1_sock ? 1 : sock == state->p2_sock ? 2
@@ -150,7 +150,7 @@ int decode(char *cmdstr, int sock)
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 joined.\n");                   //notify player 1
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Клиент: Синхронизация... (loading)\n"); //notify player 1
             send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Клиент: Синхронизация... (loading)\n"); //notify player 2
-            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_GEN, "");                                    //start generator
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_GEN, "");                                      //start generator
         }
         else
         {
@@ -200,11 +200,13 @@ int decode(char *cmdstr, int sock)
         }
         //command is ok, now do it and send it
         //now FOR NO REASON we send it to the executor...
-        if (dec_cmd == CMD_SHOT) {
+        if (dec_cmd == CMD_SHOT)
+        {
             w_logwrite("A: Received 'shot' command.", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SHOT, arg);
         }
-        if (dec_cmd == CMD_SAVE) {
+        if (dec_cmd == CMD_SAVE)
+        {
             w_logwrite("A: Received 'save' command.", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SAVE, arg);
         }

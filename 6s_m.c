@@ -16,6 +16,9 @@ int shm;
 int shm_sem;
 shmstr_t *state; //shared structure
 
+char str_msq_m[NAMELEN], str_msq_w[NAMELEN];
+char str_shm[NAMELEN], str_shm_sem[NAMELEN];
+
 //------------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------------
 //FILE FUNCTIONS
@@ -29,7 +32,7 @@ int cfgread(char *cfgfilename)
 {
     char buf[BUFSIZE];
     int cfgfile; //cfg file desc
-
+execv()
     printf("Opening cfg file... \n");
     CHECK(cfgfile = open(cfgfilename, O_RDONLY), -1, "Error while opening config file")
     buf[read(cfgfile, buf, BUFSIZE - 1)] = '\0';
@@ -158,10 +161,8 @@ int sock_accept(int sock_l)
     cons[con_size - 1].addr = sa_r;
     cons[con_size - 1].pid_e_dize = 0;
     if (!(cons[con_size - 1].pid_a = fork()))
-    {
-        //TODO: exec A
-    }
-    logwrite_int("Created A:", cons[con_size - 1].pid_a, V_DEBUG);
+        execl("6s_a", "6s_a", str_msq_m, str_msq_w, str_shm, str_sem, NULL);
+    logwrite_int("Created new fork (A):", cons[con_size - 1].pid_a, V_ALL);
     sock_send(sock_r, hello_msg, 0); //send hello msg
     if (!is_blocked)
         unblock_signal(SIGHUP);
@@ -253,9 +254,9 @@ void sock_closeall(int hard, char *msg) { //if hard, we don't send anything to c
                 sock_send(cons[i].sock, msg, 0);
         logwrite("Last messages sent", V_ALL);
         //gameovers
-        print_state(1, state, msg, state->g_st == GS_FINISH);
+        print_gameover(msg, 0, 1, state->p1_score, state->p2_score);
         send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
-        print_state(2, state, msg, state->g_st == GS_FINISH);
+        print_gameover(msg, 0, 2, state->p1_score, state->p2_score);
         send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
         logwrite("Gameovers sent", V_ALL);
     }
@@ -295,23 +296,23 @@ int sock_fin(int sock)
                 send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "You are disconnected.");
             else
                 send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "You are disconnected.");
-            if (state->g_st == GS_GAME || state->g_st == GS_FINISH) {  //send gameover only in the game
+            if (state->g_st == GS_GAME) {  //send gameover only in the game
                 if (scon->sock == state->p1_sock) //don't send this in connect phase
                     send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Player 1 was disconnected.");
                 else
                     send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 was disconnected.");
                 //gameovers
-                print_state(1, state, msg, state->g_st == GS_FINISH);
+                print_gameover(msg, 0, 1, state->p1_score, state->p2_score);
                 send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
-                print_state(2, state, msg, state->g_st == GS_FINISH);
+                print_gameover(msg, 0, 2, state->p1_score, state->p2_score);
                 send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
                 //wipe state
                 state->p1_sock  = -1;
                 state->p2_sock  = -1;
+                state->pass[0]  = '\0';
                 state->p1_st    = PS_NO;
                 state->p2_st    = PS_NO;
                 state->g_st     = GS_NO;
-                state->pass[0]  = '\0';
             }
         }
     semop(shm_sem, sop_unlock, 1);
@@ -339,8 +340,6 @@ int sock_fin(int sock)
 //------------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------------
 
-#include "6s_m_sock.c"
-
 void server_init() {
     //create basic structures and MQs
     logwrite("Creating basic structures...", V_ALL);
@@ -353,6 +352,11 @@ void server_init() {
     logwrite("ShM created and attached", V_ALL);
     CHECK(shm_sem = semget(IPC_PRIVATE, 1, IPC_CREAT), -1, "Error while creating semaphore")
     logwrite("Semaphore created", V_ALL);
+    //now make 'string' versions of IDs
+    sprintf(str_msq_m, "%d", msq_m);
+    sprintf(str_msq_w, "%d", msq_w);
+    sprintf(str_shm, "%d", shm);
+    sprintf(str_sem, "%d", shm_sem);
 }
 
 void server_stop() {
@@ -408,16 +412,14 @@ int check_msg(int msgtype, int send_only, int print_only)
             return -1;
         }
         if (!(pid_f = fork()))
-        {
-            //TODO: exec E
-        }
+            execl("6s_e", "6s_e", str_msq_m, str_msq_w, str_shm, str_sem, NULL);
+        logwrite_int("Created new fork (E):", pid_f, V_ALL);
         send_msg(msq_w, pid_f, sock, cmd, msg);
         break;
     case CMD_GEN:
         if (!(pid_f = fork()))
-        {
-            //TODO: exec G
-        }
+            execl("6s_g", "6s_g", str_msq_m, str_msq_w, str_shm, str_sem, NULL);
+        logwrite_int("Created new fork (G):", pid_f, V_ALL);
         break;
     default:
         logwrite("Error command:", V_MAIN);

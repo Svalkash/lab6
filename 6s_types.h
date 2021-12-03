@@ -88,8 +88,7 @@ typedef enum pstate_s
     PS_NO,
     PS_INIT,
     PS_EXEC,
-    PS_DONE,
-    PS_WAITING
+    PS_DONE
 } pstate_t; //player state for each turn
 
 typedef struct con_s
