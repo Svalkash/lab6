@@ -11,13 +11,76 @@
 
 #define BUFSIZE 1024
 
+int digits_only(char *str) {
+    char *ptr = str;
+    while (*ptr != '\0') {
+        printf("%c", *ptr);
+        if (*ptr < '0' || *ptr > '9')
+            return 0;
+        ++ptr;
+    }
+    return 1;
+}
+
+int decode(char *cmdstr) {
+    char *cmd, *arg, *trash;
+
+    //decode command
+    cmd = strtok(cmdstr, " \t");
+    arg = strtok(NULL, " \t");
+    trash = strtok(NULL, " \t");
+
+    printf("Decoding command:");
+    printf(cmdstr);
+    if (!cmd)
+    {
+        printf("[ERROR] Empty command!");
+        return 0;
+    }
+    if (!arg) {
+        printf("[ERROR] No arguments for the command!");
+        return 0;
+    }
+    if (trash) {
+        printf("[ERROR] Trash at the end of the command!");
+        return 0;
+    }
+    if ((!strcmp(cmd, "shot") || !strcmp(cmd, "save")) && !digits_only(arg)) {
+        printf("[ERROR] Invalid zone number!");
+        return 0;
+    }
+    if (!strcmp(cmd, "start")) {
+        printf("Received start");
+    return 1;
+    }
+    if (!strcmp(cmd, "join")) {
+        printf("Received join");
+    return 1;
+        
+    }
+    if (!strcmp(cmd, "shot")) {
+        printf("Received shot");
+    return 1;
+        
+    }
+    if (!strcmp(cmd, "save")) {
+        printf("Received save");
+    return 1;
+        
+    }
+    printf("unknown command");
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
-    char input[80] = "ararstart 1\n     boastop 2\n     .sta";
+    char input[80] = "save 45  \n";
     char new_cmd[80] = "rt 3\n st!op !4  \n";
     int zone;
+    char buf[80];
     char *cmd;
     char *cmdend, *cmdstart;
+    int scand = 0;
 
     cmd = calloc(strlen(input) + 1, sizeof(char));
     strcpy(cmd, input);
@@ -38,13 +101,7 @@ int main(int argc, char *argv[])
         //mark the end of the command
         *cmdend = '\0';
         //interpret
-        printf("Command: '%s'\n", cmdstart);
-        if (sscanf(cmdstart, "start %d", &zone) == 1)
-            printf("good start, zone %d\n", zone);
-        else if (sscanf(cmdstart, "stop %d", &zone) == 1)
-            printf("good stop, zone %d\n", zone);
-        else
-            printf("nope\n");
+        decode(cmdstart);
         //unmark
         *cmdend = '\n';
         //next cmd of \0

@@ -10,6 +10,7 @@
         "type_traits": "c",
         "typeinfo": "c",
         "6s_types.h": "c",
-        "shm.h": "c"
+        "shm.h": "c",
+        "errno.h": "c"
     }
 }

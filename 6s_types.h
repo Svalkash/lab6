@@ -20,6 +20,8 @@
 #define MAXLISTEN 256
 #define MAXCONS 256
 
+#define T_PRINT 1
+
 #define CHECK(fun, errval, msg) \
     {                           \
         if ((fun) == errval)    \
@@ -59,15 +61,17 @@ typedef enum verb_e
 
 typedef enum cmd_e
 {
+    CMD_PRINT, //M - print to log
     CMD_SEND, //M - send message to socket
-    CMD_SHOT,
-    CMD_SAVE,
-    CMD_CREATE, //E - create game
-    CMD_JOIN,   //E - join game
+    CMD_SHOT,   //E
+    CMD_SAVE,   //E
+    CMD_START, //A - create game - internal
+    CMD_JOIN,   //A - join game - internal
     CMD_A,      //A - interpret command
     CMD_GEN,    //G - select first attacker and clear game score
     CMD_INIT,   //G - reset structure to 0
-    CMD_STOP    //A - stop
+    CMD_STOP,    //A - stop
+    CMD_UNKN
 } cmd_t;
 
 typedef enum gstate_e
@@ -75,14 +79,14 @@ typedef enum gstate_e
     GS_INIT,
     GS_NO,
     GS_CONNECT,
-    GS_GAME,
-    GS_FINISH
+    GS_GEN,
+    GS_GAME
 } gstate_t; //game state for each turn
 
 typedef enum pstate_s
 {
-    PS_NO
-        PS_INIT,
+    PS_NO,
+    PS_INIT,
     PS_EXEC,
     PS_DONE,
     PS_WAITING
@@ -101,11 +105,12 @@ typedef struct msg_s
     int sock;
     cmd_t cmd;
     char mtext[BUFSIZE];
-} msgbuf_t;
+} msg_t;
 
 typedef struct shmstr_s
 {
     int p1_sock, p2_sock; //player 1 & 2 sockets
+    char[NAMELEN] pass;
     gstate_t g_st;
     pstate_t p1_st, p2_st;
     int p1_zone, p2_zone;
