@@ -25,14 +25,15 @@ char str_shm[NAMELEN], str_shm_sem[NAMELEN];
 
 verb_t verb; //how many we want to see in the log
 
+char *cfgfilename;
 char logname[NAMELEN];
 int logfile = -1; //log file desc
 
-int cfgread(char *cfgfilename)
+int cfgread()
 {
     char buf[BUFSIZE];
     int cfgfile; //cfg file desc
-execv()
+
     printf("Opening cfg file... \n");
     CHECK(cfgfile = open(cfgfilename, O_RDONLY), -1, "Error while opening config file")
     buf[read(cfgfile, buf, BUFSIZE - 1)] = '\0';
@@ -61,7 +62,7 @@ int logopen()
     printf("Creating log file... \n");
     time(&t);
     timestr = ctime(&t);
-    logfilename = malloc(strlen(logname) + 3 + strlen(timestr) + 4 + 1));
+    logfilename = malloc(strlen(logname) + 3 + strlen(timestr) + 4 + 1);
     strcpy(logfilename, logname);
     strcat(logfilename, " - ");
     strcat(logfilename, timestr);
@@ -156,13 +157,12 @@ int sock_accept(int sock_l)
     logwrite_int("Connection accepted:", sock_r, V_ALL);
     //connection accepted, all good
     fcntl(sock_r, F_SETFL, O_NONBLOCK | fcntl(sock_l, F_GETFL));
-    ++con_size;
-    cons[con_size - 1].sock = sock_r;
-    cons[con_size - 1].addr = sa_r;
-    cons[con_size - 1].pid_e_dize = 0;
-    if (!(cons[con_size - 1].pid_a = fork()))
-        execl("6s_a", "6s_a", str_msq_m, str_msq_w, str_shm, str_sem, NULL);
-    logwrite_int("Created new fork (A):", cons[con_size - 1].pid_a, V_ALL);
+    ++cons_size;
+    cons[cons_size - 1].sock = sock_r;
+    cons[cons_size - 1].addr = sa_r;
+    if (!(cons[cons_size - 1].pid_a = fork()))
+        execl("6s_a", "6s_a", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
+    logwrite_int("Created new fork (A):", cons[cons_size - 1].pid_a, V_ALL);
     sock_send(sock_r, hello_msg, 0); //send hello msg
     if (!is_blocked)
         unblock_signal(SIGHUP);
@@ -172,7 +172,7 @@ int sock_accept(int sock_l)
 con_t *sock_con(int sock_r)
 { //find connection for socket
     for (int i = 0; i < cons_size; ++i)
-        if (cons[i].addr == sock_r)
+        if (cons[i].sock == sock_r)
             return &cons[i];
     return NULL;
 }
@@ -251,7 +251,7 @@ void sock_closeall(int hard, char *msg) { //if hard, we don't send anything to c
         //send last words to everyone
         if (!hard && msg)
             for (int i = 0; i < cons_size; ++i)
-                sock_send(cons[i].sock, msg, 0);
+                sock_send(cons[i].sock, msg);
         logwrite("Last messages sent", V_ALL);
         //gameovers
         print_gameover(msg, 0, 1, state->p1_score, state->p2_score);
@@ -268,8 +268,8 @@ void sock_closeall(int hard, char *msg) { //if hard, we don't send anything to c
     cons_size = 0;
     logwrite("Client sockets closed", V_ALL);
     //finally close l-socket
-    shutdown(sock, SHUT_RDWR); //no, server will NOT wait for clients now. Shutdown is shutdown.
-    close(sock);
+    shutdown(sock_l, SHUT_RDWR); //no, server will NOT wait for clients now. Shutdown is shutdown.
+    close(sock_l);
     logwrite("Listen-socket closed", V_ALL);
     //now can unlock SIGHUP
     if (!is_blocked)
@@ -289,7 +289,7 @@ int sock_fin(int sock)
         block_signal(SIGHUP);
     //check if THIS client was a player and do a gameover
     semop(shm_sem, sop_lock, 2);
-    if (scon->sock == state->p1_sock) || scon->sock == state->p2_sock)
+    if (scon->sock == state->p1_sock || scon->sock == state->p2_sock)
         {
             //basic messages
             if (scon->sock == state->p1_sock) // || scon->sock == state->p2_sock)
@@ -302,10 +302,10 @@ int sock_fin(int sock)
                 else
                     send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 was disconnected.");
                 //gameovers
-                print_gameover(msg, 0, 1, state->p1_score, state->p2_score);
-                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
-                print_gameover(msg, 0, 2, state->p1_score, state->p2_score);
-                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
+                print_gameover(gameover, 0, 1, state->p1_score, state->p2_score);
+                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
+                print_gameover(gameover, 0, 2, state->p1_score, state->p2_score);
+                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
                 //wipe state
                 state->p1_sock  = -1;
                 state->p2_sock  = -1;
@@ -319,7 +319,7 @@ int sock_fin(int sock)
 
     //clear A's messages
     eat_msgs(msq_w, scon->pid_a);
-    send_msg(msq_w, scon->pid_a, sock_r, CMD_A, ""); //So A will be 'stopped' with messages
+    send_msg(msq_w, scon->pid_a, sock, CMD_A, ""); //So A will be 'stopped' with messages
     waitpid(scon->pid_a, NULL, 0);                   //wait for A to stop
     //send all pending messages to the client before closing the socket
     while (check_msg(scon->sock, 1, 1))
@@ -356,7 +356,7 @@ void server_init() {
     sprintf(str_msq_m, "%d", msq_m);
     sprintf(str_msq_w, "%d", msq_w);
     sprintf(str_shm, "%d", shm);
-    sprintf(str_sem, "%d", shm_sem);
+    sprintf(str_shm_sem, "%d", shm_sem);
 }
 
 void server_stop() {
@@ -367,8 +367,15 @@ void server_stop() {
     shmdt(state);
     shmctl(shm, IPC_RMID, NULL);
     logwrite("ShM detached and removed", V_ALL);
-    semctl(sem, 0, IPC_RMID);
+    semctl(shm_sem, 0, IPC_RMID);
     logwrite("Semaphore removed", V_ALL);
+}
+
+con_t *sock_findcon(sock) {
+    for (int i = 0; i < cons_size; ++i)
+        if (cons[i].sock == sock)
+            return &cons[i];
+    return 0;
 }
 
 int check_msg(int msgtype, int send_only, int print_only)
@@ -392,15 +399,15 @@ int check_msg(int msgtype, int send_only, int print_only)
         return 0;
     }
     //work with message - check its type first
-    if ((send_only || print only) && !(send_only && cmd == CMD_SEND) && !(print_only && cmd == CMD_PRINT))
+    if ((send_only || print_only) && !(send_only && cmd == CMD_SEND) && !(print_only && cmd == CMD_PRINT))
         return 1; //skip commands
     switch (cmd)
     {
-    case PRINT:
+    case CMD_PRINT:
         logwrite(msg, sock);
         break;
     case CMD_SEND:
-        sock_send(sock, msg, 0);
+        sock_send(sock, msg);
         break;
     case CMD_SHOT:
     case CMD_SAVE:
@@ -408,22 +415,22 @@ int check_msg(int msgtype, int send_only, int print_only)
     case CMD_JOIN:
         //create E and send command
         if (!(sock_con = sock_findcon(sock))) {
-            logwrite_int("ERROR: Tried work with closed socket:", sock_r, V_MAIN); //sanity check
+            logwrite_int("ERROR: Tried work with closed socket:", sock, V_MAIN); //sanity check
             return -1;
         }
         if (!(pid_f = fork()))
-            execl("6s_e", "6s_e", str_msq_m, str_msq_w, str_shm, str_sem, NULL);
+            execl("6s_e", "6s_e", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
         logwrite_int("Created new fork (E):", pid_f, V_ALL);
         send_msg(msq_w, pid_f, sock, cmd, msg);
         break;
     case CMD_GEN:
         if (!(pid_f = fork()))
-            execl("6s_g", "6s_g", str_msq_m, str_msq_w, str_shm, str_sem, NULL);
+            execl("6s_g", "6s_g", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
         logwrite_int("Created new fork (G):", pid_f, V_ALL);
         break;
     default:
         logwrite("Error command:", V_MAIN);
-        logwrite(msg);
+        logwrite(msg, sock);
         break;
     }
     if (!is_blocked)
@@ -466,6 +473,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: %s <filecfg> <verbosity>\n", argv[0]);
         return -1;
     }
+    strcpy(cfgfilename, argv[2]);
     if (argc == 3)
     {
         int vint = atoi(argv[3]);
@@ -475,7 +483,7 @@ int main(int argc, char *argv[])
             return -2;
         }
         else
-            verb = (verbosity_t)vint;
+            verb = (verb_t)vint;
     }
     else
         verb = V_ALL;

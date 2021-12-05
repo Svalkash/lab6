@@ -9,6 +9,8 @@
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 #define BUFSIZE 1024
 
@@ -39,7 +41,7 @@ struct in_addr lookup_host(const char *host)
 
 
     printf("Host: %s\n", host);
-    retval = (struct sockaddr_in *)res->ai_addr->sin_addr;
+    retval = ((struct sockaddr_in *)res->ai_addr)->sin_addr;
     //here it should be usable for sockets
     inet_ntop(res->ai_family, &retval, buf, BUFSIZE - 1);
     printf("IPv4 address: %s\n", buf);
@@ -109,7 +111,7 @@ int main(int argc, char *argv[])
     }
 
     sa_srv.sin_family = AF_INET;
-    if (inet_pton(AF_INET, argv[1]), &sa_srv.sin_addr)
+    if (inet_pton(AF_INET, argv[1], &sa_srv.sin_addr))
         printf("Address is a valid IP\n");
     else {
         printf("Address is a hostname... maybe\n");
@@ -126,7 +128,7 @@ int main(int argc, char *argv[])
         //reader
         int ret;
 
-        while ((ret = recv(sock_r, rcv_msg, BUFSIZE - 1, 0)) > 0)
+        while ((ret = recv(sock, rcv_msg, BUFSIZE - 1, 0)) > 0)
             printf("[SERVER] %s", rcv_msg);
         if (ret == -1) {
             perror("Error while receiving data");

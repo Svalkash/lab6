@@ -68,7 +68,7 @@ int eat_msgs(int msq, int type) {
     CHECK_EAGAIN("Error while receiving message")
 }
 
-inline void semfix(int sem, int val) { semctl(sem, 0, SETVAL, val); }
+void semfix(int sem, int val) { semctl(sem, 0, SETVAL, val); }
 
 int randint() {
     //YES, I KNOW THAT SIZEOF(INT) = 4!
@@ -90,7 +90,7 @@ char *print_gameover(char *buf, int gameover, int player, int p1_score, int p2_s
 
     switch(player) {
     case 1:
-        score_y = p1_score
+        score_y = p1_score;
         score_e = p2_score;
         break;
     case 2:
