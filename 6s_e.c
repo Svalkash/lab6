@@ -6,7 +6,7 @@ int shm;
 int shm_sem;
 shmstr_t *state; //shared structure
 
-inline int w_logwrite(char *str, verb_t print_v)
+int w_logwrite(char *str, verb_t print_v)
 {
     return send_msg(msq_m, T_PRINT, print_v, CMD_PRINT, str);
 }
@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
         //next turn or next round?
         if (state->turn == state->first_turn) //next turn
             state->turn = state->first_turn == 1 ? 2 : 1;
-        else if (state->round < state->min_rounds || state->1_score == state->p2_score) {//next round
+        else if (state->round < state->min_rounds || state->p1_score == state->p2_score) {//next round
             ++state->round;
             state->turn = state->first_turn;
         }
@@ -154,9 +154,9 @@ int main(int argc, char *argv[])
         if (gameover) {
             w_logwrite_int("E: Gameover, cleaning mess...", state->turn, V_GAME);
             print_gameover(sndbuf, 1, 1, state->p1_score, state->p2_score);
-            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf;
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf);
             print_gameover(sndbuf, 2, 2, state->p1_score, state->p2_score);
-            send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf;
+            send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf);
             //clean state
             state->p1_sock = -1;
             state->p2_sock = -1;
@@ -168,18 +168,17 @@ int main(int argc, char *argv[])
         else {
             w_logwrite_int("E: Round: ", state->round, V_GAME);
             w_logwrite_int("E: Turn: ", state->turn, V_GAME);
-            print_turn(sndbuf, state->round, turn, turn == 1);
-            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf;
-            print_turn(sndbuf, state->round, turn, turn == 2)
+            print_turn(sndbuf, state->round, state->turn, state->turn == 1);
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf);
+            print_turn(sndbuf, state->round, state->turn, state->turn == 2);
             send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf);
-            p1_st = PS_INIT; //ready for commands
-            p2_st = PS_INIT; //ready for commands
+            state->p1_st = PS_INIT; //ready for commands
+            state->p2_st = PS_INIT; //ready for commands
         }
     }
     //all good
     semop(shm_sem, sop_unlock, 1); //unlock the struct
     w_logwrite("E: Done, stopping..", V_ALL);
-    free(cmdstr);
     shmdt(state);
     w_logwrite("E: Stopped.", V_ALL);
     return 0;

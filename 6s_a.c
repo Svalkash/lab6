@@ -6,7 +6,7 @@ int shm;
 int shm_sem;
 shmstr_t *state; //shared structure
 
-inline int w_logwrite(char *str, verb_t print_v)
+int w_logwrite(char *str, verb_t print_v)
 {
     return send_msg(msq_m, T_PRINT, print_v, CMD_PRINT, str);
 }
@@ -81,7 +81,7 @@ int decode(char *cmdstr, int sock)
         send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Password is too long!\n");
         return 0;
     }
-    if (dec_cmd == CMD_SHOT || dec_cmd == CMD_SAVE) && (!digits_only(arg) || itoa(arg) < 0 || itoa(arg) > 10))
+    if ((dec_cmd == CMD_SHOT || dec_cmd == CMD_SAVE) && (!digits_only(arg) || atoi(arg) < 0 || atoi(arg) > 10))
         {
             w_logwrite("A: [ERROR] Invalid zone number!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Invalid zone number!\n");
@@ -112,7 +112,7 @@ int decode(char *cmdstr, int sock)
             w_logwrite("A: Received 'start' command.", V_ALL);
             state->g_st = GS_CONNECT;  //waiting for connections now
             state->p1_sock = sock;     //mark current player as first
-            state->p1_state = PS_INIT; //he won't send anything though
+            state->p1_st = PS_INIT; //he won't send anything though
             strcpy(state->pass, arg);
             w_logwrite("A: New password:", V_ALL);
             w_logwrite(arg, V_ALL);
@@ -145,7 +145,7 @@ int decode(char *cmdstr, int sock)
             //password is good
             state->g_st = GS_GEN;      //waiting for connections now
             state->p2_sock = sock;     //mark current player as first
-            state->p2_state = PS_INIT; //he will WAIT
+            state->p2_st = PS_INIT; //he will WAIT
             w_logwrite("A: Player 2 joined, waiting for G...", V_ALL);
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 joined.\n");                   //notify player 1
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Клиент: Синхронизация... (loading)\n"); //notify player 1
@@ -186,13 +186,13 @@ int decode(char *cmdstr, int sock)
             return 0;
         }
         //can send commands
-        if (dec_cmd == CMD_SHOT && turn != player)
+        if (dec_cmd == CMD_SHOT && state->turn != player)
         {
             w_logwrite("A: [DENIED] You are attacking!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are attacking!\n");
             return 0;
         }
-        if (dec_cmd == CMD_SAVE && turn == player)
+        if (dec_cmd == CMD_SAVE && state->turn == player)
         {
             w_logwrite("A: [DENIED] You are defending!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are defending!\n");
@@ -211,9 +211,9 @@ int decode(char *cmdstr, int sock)
             send_msg(msq_m, sock, sock, CMD_SAVE, arg);
         }
         if (player == 1) //mark player as EXEC so no new commands will be accepted
-            p1_st = PS_EXEC;
+            state->p1_st = PS_EXEC;
         else
-            p2_st = PS_EXEC;
+            state->p2_st = PS_EXEC;
         return 1;
     default:
         w_logwrite("A: [ERROR] Incorrect state!", V_ALL);

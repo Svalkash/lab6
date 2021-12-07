@@ -6,7 +6,7 @@ int shm;
 int shm_sem;
 shmstr_t *state; //shared structure
 
-inline int w_logwrite(char *str, verb_t print_v)
+int w_logwrite(char *str, verb_t print_v)
 {
     return send_msg(msq_m, T_PRINT, print_v, CMD_PRINT, str);
 }
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
         //lock and init memory
         semop(shm_sem, sop_lock, 2);
         state->first_turn = randint() % 2 ? 1 : 2;
-        w_logwrite_int("G: First turn belongs to player: ", first_turn);
+        w_logwrite_int("G: First turn belongs to player: ", state->first_turn, V_GAME);
         state->min_rounds = 5;
         state->g_st = GS_GAME;
         state->p1_st = PS_INIT; //redundant
@@ -65,15 +65,14 @@ int main(int argc, char *argv[])
         send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Game has started!\n");
         w_logwrite_int("G: Game started, round: ", state->round, V_GAME);
         w_logwrite_int("G: turn: ", state->turn, V_GAME);
-        print_turn(sndbuf, state->round, turn, turn == 1);
-        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf;
-        print_turn(sndbuf, state->round, turn, turn == 2)
+        print_turn(sndbuf, state->round, state->turn, state->turn == 1);
+        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf);
+        print_turn(sndbuf, state->round, state->turn, state->turn == 2);
         send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf);
         semop(shm_sem, sop_unlock, 1);
     }
 
     w_logwrite("G: Done, stopping..", V_ALL);
-    free(cmdstr);
     shmdt(state);
     w_logwrite("G: Stopped.", V_ALL);
     return 0;
