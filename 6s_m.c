@@ -21,6 +21,30 @@ char str_shm[NAMELEN], str_shm_sem[NAMELEN];
 
 //------------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------------
+//prototypes
+//file
+int cfgread();
+int logwrite(const char *str, verb_t print_v);
+int logwrite_int(const char *str, long num, verb_t print_v);
+int logopen();
+int logclose();
+//sock
+int sock_send(int sock_r, const char *msg);
+int sock_rcv(int sock_r, int pid_a);
+int sock_listen(int port);
+int sock_accept(int sock_l);
+con_t *sock_findcon(int sock_r);
+void sock_closeall(int hard, const char *msg);
+int sock_fin(int sock);
+//server
+void server_init();
+void server_stop();
+int check_msg(int msgtype, int send_only, int print_only);
+void handler_cfg(int signum);
+void handler_stop(int signum);
+
+//------------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------------
 //FILE FUNCTIONS
 
 verb_t verb; //how many we want to see in the log
@@ -44,36 +68,7 @@ int cfgread()
     close(cfgfile);
 }
 
-int logopen()
-{
-    char *logfilename;
-    time_t t;
-    char *timestr;
-
-    int is_blocked = check_mask(SIGHUP);
-    if (!is_blocked)
-        block_signal(SIGHUP);
-    if (logfile != -1)
-    {
-        logwrite("Closing log file to reopen");
-        close(logfile);
-    }
-
-    printf("Creating log file... \n");
-    time(&t);
-    timestr = ctime(&t);
-    logfilename = malloc(strlen(logname) + 3 + strlen(timestr) + 4 + 1);
-    strcpy(logfilename, logname);
-    strcat(logfilename, " - ");
-    strcat(logfilename, timestr);
-    strcat(logfilename, ".txt");
-    CHECK(logfile = creat(logfilename, 0666), -1, "Error while opening log file")
-    if (!is_blocked)
-        unblock_signal(SIGHUP);
-    free(logfilename);
-}
-
-int logwrite(char *str, verb_t print_v)
+int logwrite(const char *str, verb_t print_v)
 {
     time_t t;
     char *timestr;
@@ -99,12 +94,41 @@ int logwrite(char *str, verb_t print_v)
     return 1;
 }
 
-int logwrite_int(char *str, long num, verb_t print_v)
+int logwrite_int(const char *str, long num, verb_t print_v)
 {
     char outstr[BUFSIZE];
 
-    sprintf(outstr, "%s %d", str, num);
+    sprintf(outstr, "%s %ld", str, num);
     logwrite(outstr, print_v);
+}
+
+int logopen()
+{
+    char *logfilename;
+    time_t t;
+    char *timestr;
+
+    int is_blocked = check_mask(SIGHUP);
+    if (!is_blocked)
+        block_signal(SIGHUP);
+    if (logfile != -1)
+    {
+        logwrite("Closing log file to reopen", V_MAIN);
+        close(logfile);
+    }
+
+    printf("Creating log file... \n");
+    time(&t);
+    timestr = ctime(&t);
+    logfilename = malloc(strlen(logname) + 3 + strlen(timestr) + 4 + 1);
+    strcpy(logfilename, logname);
+    strcat(logfilename, " - ");
+    strcat(logfilename, timestr);
+    strcat(logfilename, ".txt");
+    CHECK(logfile = creat(logfilename, 0666), -1, "Error while opening log file")
+    if (!is_blocked)
+        unblock_signal(SIGHUP);
+    free(logfilename);
 }
 
 int logclose() { close(logfile); }
@@ -117,6 +141,57 @@ int sock_l; //listening socket
 
 int cons_size = 0;
 con_t cons[MAXCONS]; //array of connection structures
+
+int sock_send(int sock_r, const char *msg)
+{
+    int san_check = 0;
+
+    int is_blocked = check_mask(SIGHUP);
+    if (!is_blocked)
+        block_signal(SIGHUP);
+    //sanity check
+    if (!sock_findcon(sock_r))
+    {
+        logwrite_int("ERROR: Tried to send message to closed socket:", sock_r, V_MAIN);
+        return -1;
+    }
+    logwrite_int("Sending to socket ", sock_r, V_DEBUG);
+    logwrite(msg, V_DEBUG);
+    send(sock_r, msg, strlen(msg), 0);
+    if (!is_blocked)
+        unblock_signal(SIGHUP);
+}
+
+int sock_rcv(int sock_r, int pid_a)
+{
+    int rcv_sz;
+    char msg[BUFSIZE];
+
+    int is_blocked = check_mask(SIGHUP);
+    if (!is_blocked)
+        block_signal(SIGHUP);
+    //receive message
+    rcv_sz = recv(sock_r, msg, BUFSIZE - 1, 0); //-1 so \0 will be conserved
+    if (rcv_sz == -1)
+    {
+        CHECK_EAGAIN("Error while receiving data from socket")
+        if (!is_blocked)
+            unblock_signal(SIGHUP);
+        return 0;
+    }
+    else if (rcv_sz == 0) {
+        sock_fin(sock_r);
+        return -2;
+    }
+    msg[rcv_sz] = '\0';
+    logwrite_int("Received from socket ", sock_r, V_DEBUG);
+    logwrite(msg, V_DEBUG);
+    //send command to A
+    send_msg(msq_w, pid_a, sock_r, CMD_A, msg);
+    if (!is_blocked)
+        unblock_signal(SIGHUP);
+    return rcv_sz;
+}
 
 int sock_listen(int port)
 {
@@ -163,13 +238,13 @@ int sock_accept(int sock_l)
     if (!(cons[cons_size - 1].pid_a = fork()))
         execl("6s_a", "6s_a", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
     logwrite_int("Created new fork (A):", cons[cons_size - 1].pid_a, V_ALL);
-    sock_send(sock_r, hello_msg, 0); //send hello msg
+    sock_send(sock_r, hello_msg); //send hello msg
     if (!is_blocked)
         unblock_signal(SIGHUP);
     return 1;
 }
 
-con_t *sock_con(int sock_r)
+con_t *sock_findcon(int sock_r)
 { //find connection for socket
     for (int i = 0; i < cons_size; ++i)
         if (cons[i].sock == sock_r)
@@ -177,58 +252,7 @@ con_t *sock_con(int sock_r)
     return NULL;
 }
 
-int sock_send(int sock_r, char *msg)
-{
-    int san_check = 0;
-
-    int is_blocked = check_mask(SIGHUP);
-    if (!is_blocked)
-        block_signal(SIGHUP);
-    //sanity check
-    if (!sock_con(sock_r))
-    {
-        logwrite_int("ERROR: Tried to send message to closed socket:", sock_r, V_MAIN);
-        return -1;
-    }
-    logwrite_int("Sending to socket ", sock_r, V_DEBUG);
-    logwrite(msg, V_DEBUG);
-    send(sock_r, msg, strlen(msg), 0);
-    if (!is_blocked)
-        unblock_signal(SIGHUP);
-}
-
-int sock_rcv(int sock_r, int pid_a)
-{
-    int rcv_sz;
-    char msg[BUFSIZE];
-
-    int is_blocked = check_mask(SIGHUP);
-    if (!is_blocked)
-        block_signal(SIGHUP);
-    //receive message
-    rcv_sz = recv(sock_r, msg, BUFSIZE - 1, 0); //-1 so \0 will be conserved
-    if (rcv_sz == -1)
-    {
-        CHECK_EAGAIN("Error while receiving data from socket")
-        if (!is_blocked)
-            unblock_signal(SIGHUP);
-        return 0;
-    }
-    else if (rcv_sz == 0) {
-        sock_fin(sock_r);
-        return -2;
-    }
-    msg[rcv_sz] = '\0';
-    logwrite_int("Received from socket ", sock_r, V_DEBUG);
-    logwrite(msg, V_DEBUG);
-    //send command to A
-    send_msg(msq_w, pid_a, sock_r, CMD_A, msg);
-    if (!is_blocked)
-        unblock_signal(SIGHUP);
-    return rcv_sz;
-}
-
-void sock_closeall(int hard, char *msg) { //if hard, we don't send anything to clients
+void sock_closeall(int hard, const char *msg) { //if hard, we don't send anything to clients
     char gameover[BUFSIZE];
 
     logwrite("Closing all connections...", V_MAIN);
@@ -254,10 +278,10 @@ void sock_closeall(int hard, char *msg) { //if hard, we don't send anything to c
                 sock_send(cons[i].sock, msg);
         logwrite("Last messages sent", V_ALL);
         //gameovers
-        print_gameover(msg, 0, 1, state->p1_score, state->p2_score);
-        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
-        print_gameover(msg, 0, 2, state->p1_score, state->p2_score);
-        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, msg);
+        print_gameover(gameover, 0, 1, state->p1_score, state->p2_score);
+        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
+        print_gameover(gameover, 0, 2, state->p1_score, state->p2_score);
+        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
         logwrite("Gameovers sent", V_ALL);
     }
     //close r-sockets
@@ -282,7 +306,7 @@ void sock_closeall(int hard, char *msg) { //if hard, we don't send anything to c
 int sock_fin(int sock)
 {
     char gameover[BUFSIZE];
-    con_t *scon = sock_con(sock); //socket 'connection'
+    con_t *scon = sock_findcon(sock); //socket 'connection'
 
     int is_blocked = check_mask(SIGHUP);
     if (!is_blocked)
@@ -348,7 +372,7 @@ void server_init() {
     CHECK(msq_w = msgget(IPC_PRIVATE, IPC_CREAT | 0666), -1, "Error while creating MQ_w")
     logwrite("MQ_w created", V_ALL);
     CHECK(shm = shmget(IPC_PRIVATE, sizeof(shmstr_t), IPC_CREAT | 0666), -1, "Error while creating shmemory")
-    CHECK(state = (shmstr_t*)shmat(shm, NULL, 0), -1, "Error attaching memory")
+    CHECK(state = (shmstr_t*)shmat(shm, NULL, 0), NULL, "Error attaching memory")
     logwrite("ShM created and attached", V_ALL);
     CHECK(shm_sem = semget(IPC_PRIVATE, 1, IPC_CREAT), -1, "Error while creating semaphore")
     logwrite("Semaphore created", V_ALL);
@@ -371,20 +395,13 @@ void server_stop() {
     logwrite("Semaphore removed", V_ALL);
 }
 
-con_t *sock_findcon(sock) {
-    for (int i = 0; i < cons_size; ++i)
-        if (cons[i].sock == sock)
-            return &cons[i];
-    return 0;
-}
-
 int check_msg(int msgtype, int send_only, int print_only)
 {
     int msglen;
     char msg[BUFSIZE];
     int sock;
     cmd_t cmd; //dummy for receiving
-    con_t *sock_con;
+    con_t *scon;
     int pid_f;
 
     int is_blocked = check_mask(SIGHUP);
@@ -414,7 +431,7 @@ int check_msg(int msgtype, int send_only, int print_only)
     case CMD_START:
     case CMD_JOIN:
         //create E and send command
-        if (!(sock_con = sock_findcon(sock))) {
+        if (!(scon = sock_findcon(sock))) {
             logwrite_int("ERROR: Tried work with closed socket:", sock, V_MAIN); //sanity check
             return -1;
         }

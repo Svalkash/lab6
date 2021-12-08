@@ -29,7 +29,7 @@ int check_mask(int signal)
     return sigismember(&mask, signal);
 }
 
-int send_msg(int msqid, int mtype, int sock, cmd_t cmd, char *str)
+int send_msg(int msqid, int mtype, int sock, cmd_t cmd, const char *str)
 {
     msg_t msg;
 
@@ -37,7 +37,7 @@ int send_msg(int msqid, int mtype, int sock, cmd_t cmd, char *str)
     msg.sock = sock;
     msg.cmd = cmd;
     strncpy(msg.mtext, str, BUFSIZE - 1);
-    str[BUFSIZE - 1] = '\0';
+    msg.mtext[BUFSIZE - 1] = '\0';
     CHECK(msgsnd(msqid, &msg, strlen(str) + 1, 0), -1, "Error while sending message")
     return 0;
 }

@@ -15,7 +15,7 @@ int w_logwrite_int(char *str, long num, verb_t print_v)
 {
     char outstr[BUFSIZE];
 
-    sprintf(outstr, "%s %d", str, num);
+    sprintf(outstr, "%s %ld", str, num);
     w_logwrite(outstr, print_v);
 }
 
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     msq_m = atoi(argv[1]);
     msq_w = atoi(argv[2]);
     shm = atoi(argv[3]);
-    CHECK(state = (shmstr_t *)shmat(shm, NULL, 0), -1, "E: Error attaching memory")
+    CHECK(state = (shmstr_t *)shmat(shm, NULL, 0), NULL, "E: Error attaching memory")
     shm_sem = atoi(argv[4]);
     w_logwrite("E: Ready, ShM attached", V_ALL);
 
