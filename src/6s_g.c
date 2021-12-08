@@ -96,6 +96,5 @@ int main(int argc, char *argv[])
     w_logwrite("G: Done, stopping..", V_ALL);
     shmdt(state);
     w_logwrite("G: Stopped.", V_ALL);
-    w_logwrite_int("My pid was:", getpid(), V_DEBUG);
     return 0;
 }

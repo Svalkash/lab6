@@ -161,7 +161,7 @@ int sock_send(int sock_r, const char *msg)
     }
     logwrite_int("Sending to socket ", sock_r, V_DEBUG);
     logwrite(msg, V_DEBUG);
-    send(sock_r, msg, strlen(msg) + 1, 0);
+    send(sock_r, msg, strlen(msg), 0);
     if (!is_blocked)
         unblock_signal(SIGHUP);
 }
@@ -184,12 +184,14 @@ int sock_rcv(int sock_r, int pid_a)
         return 0;
     }
     else if (rcv_sz == 0) {
+        logwrite_int("Socket down: ", sock_r, V_DEBUG);
         sock_fin(sock_r);
         return -2;
     }
     msg[rcv_sz] = '\0';
-    logwrite_int("Received from socket ", sock_r, V_DEBUG);
+    logwrite_int("Received from socket: ", sock_r, V_DEBUG);
     logwrite(msg, V_DEBUG);
+    logwrite_int("size: ", rcv_sz,  V_DEBUG);
     //send command to A
     send_msg(msq_w, pid_a, sock_r, CMD_A, msg);
     if (!is_blocked)
@@ -242,7 +244,7 @@ int sock_accept(int sock_l)
     cons[cons_size - 1].sock = sock_r;
     cons[cons_size - 1].addr = sa_r;
     if (!(cons[cons_size - 1].pid_a = fork()))
-        execl("6s_a", "6s_a", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
+        execl("6s_a.exe", "6s_a.exe", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
     logwrite_int("Created new fork (A):", cons[cons_size - 1].pid_a, V_DEBUG);
     sock_send(sock_r, hello_msg); //send hello msg
     if (!is_blocked)
@@ -308,7 +310,6 @@ void sock_closeall(int hard, const char *msg) { //if hard, we don't send anythin
     //now can unlock SIGHUP
     if (!is_blocked)
         unblock_signal(SIGHUP);
-    logwrite("Listen-socket closed", V_ALL);
     logwrite("All sockets closed.", V_MAIN);
 
 }
@@ -321,10 +322,12 @@ int sock_fin(int sock)
     int is_blocked = check_mask(SIGHUP);
     if (!is_blocked)
         block_signal(SIGHUP);
+    logwrite_int("sock_fin: Closing socket: ", sock, V_DEBUG);
     //check if THIS client was a player and do a gameover
     semop(shm_sem, sop_lock, 2);
     if (scon->sock == state->p1_sock || scon->sock == state->p2_sock)
         {
+            logwrite("sock_fin: Socket was a player, endgame..", V_DEBUG);
             //basic messages
             if (scon->sock == state->p1_sock) // || scon->sock == state->p2_sock)
                 send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "You are disconnected.");
@@ -358,8 +361,10 @@ int sock_fin(int sock)
     //send all pending messages to the client before closing the socket
     while (check_msg(scon->sock, 1, 1))
         ;
+    logwrite("sock_fin: Messages cleared.", V_DEBUG);
     shutdown(scon->sock, SHUT_RDWR); //say bye-bye to the socket and now close it (it's ALREADY FIN'd by client)
     close(scon->sock);
+    logwrite("sock_fin: Socket closed.", V_DEBUG);
     //Forks are not killed - or else we'll need to deal with broken semaphores.
     //E are not killed at all: info about them is lost, we hope they'll shutdown without help.
     //We can try to remember every E's PID, keep it in con structure and track their completion...
@@ -396,12 +401,10 @@ void server_init() {
     sprintf(str_shm_sem, "%d", shm_sem);
     //reset game structure
     if (!(pid_f = fork()))
-        execl("6s_g", "6s_g", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
+        execl("6s_g.exe", "6s_g.exe", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
     logwrite_int("Created new fork (G):", pid_f, V_DEBUG);
     send_msg(msq_w, pid_f, state->p1_sock, CMD_INIT, "");
-    logwrite_int("Waiting for generator...", pid_f, V_DEBUG);
     waitpid(pid_f, NULL, 0);  //wait for gen to init structure
-    logwrite_int("Init generator done.", pid_f, V_DEBUG);
 }
 
 void server_stop() {
@@ -445,6 +448,11 @@ int check_msg(int msgtype, int send_only, int print_only)
         logwrite(msg, sock);
         break;
     case CMD_SEND:
+        //create E and send command
+        if (!(scon = sock_findcon(sock))) {
+            logwrite_int("ERROR: Tried work with closed socket:", sock, V_MAIN); //sanity check
+            return -1;
+        }
         sock_send(sock, msg);
         break;
     case CMD_SHOT:
@@ -457,13 +465,13 @@ int check_msg(int msgtype, int send_only, int print_only)
             return -1;
         }
         if (!(pid_f = fork()))
-            execl("6s_e", "6s_e", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
+            execl("6s_e.exe", "6s_e.exe", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
         logwrite_int("Created new fork (E):", pid_f, V_DEBUG);
         send_msg(msq_w, pid_f, sock, cmd, msg);
         break;
     case CMD_GEN:
         if (!(pid_f = fork()))
-            execl("6s_g", "6s_g", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
+            execl("6s_g.exe", "6s_g.exe", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
         logwrite_int("Created new fork (G):", pid_f, V_DEBUG);
         send_msg(msq_w, pid_f, state->p1_sock, CMD_GEN, "");
         //waitpid(pid_f, NULL, 0); //wait for gen to complete
@@ -497,7 +505,6 @@ void handler_cfg(int signum)
 
 void handler_stop(int signum)
 {
-    printf("handler called");
     //ending phase: delete all created stuff.
     sock_closeall(0, "Server stopped."); //sockets
     server_stop(); //all MQ and trash
@@ -525,14 +532,11 @@ int main(int argc, char *argv[])
         }
         else
             verb = (verb_t)vint;
-    if (verb == V_SCREEN) {
-        fprintf(stderr, "Log file - %s\n", cfgfilename);
-        fprintf(stderr, "Verb - %d\n", (int)verb);
-    }
     }
     else
         verb = V_ALL;
-    //TODO: well...
+    //setsid();
+    //please no, it's hard to debug after sid()
     //read config file, create log
     cfgread(argv[1]);
     logopen();

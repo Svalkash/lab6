@@ -93,7 +93,7 @@ int check_ip(char *ip)
 int check_disconnect(char *str) {
     char *t = strtok(str, " \t");
 
-    return !t || strcmp(t, "disconnect") ? 0 : 1;
+    return !t || strcmp(t, "disconnect\n") ? 0 : 1;
 }
 
 int main(int argc, char *argv[])
@@ -128,8 +128,10 @@ int main(int argc, char *argv[])
         //reader
         int ret;
 
-        while ((ret = recv(sock, rcv_msg, BUFSIZE - 1, 0)) > 0)
+        while ((ret = recv(sock, rcv_msg, BUFSIZE - 1, 0)) > 0) {
+            rcv_msg[ret] = '\0';
             printf("[SERVER] %s", rcv_msg);
+        }
         if (ret == -1) {
             perror("Error while receiving data");
             kill(0, SIGTERM);
@@ -149,15 +151,21 @@ int main(int argc, char *argv[])
 
         do {
             scanf("%[^\n]%*c", snd_msg);
+            //gets(snd_msg);
             strcat(snd_msg, "\n");
             printf(snd_msg);
+            printf("size %d\n", strlen(snd_msg));
             if (check_disconnect(snd_msg))
             {
                 printf("Disconnecting...\n");
                 shutdown(sock, SHUT_WR);
                 break;
             }
-        } while ((ret = send(sock, snd_msg, strlen(snd_msg), 0)) > 0);
+            //ret = send(sock, snd_msg, strlen(snd_msg), 0);
+            ret = send(sock, "a b \n", 5, 0);
+            //bruh wtf it works that way
+            printf("sent %d\n", ret);
+        } while (ret > 0);
         if (ret == -1) {
             perror("Error while sending data");
             exit(-1);

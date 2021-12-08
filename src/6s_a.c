@@ -96,15 +96,6 @@ int decode(char *cmdstr, int sock)
     GS_NO:
         if (dec_cmd == CMD_START)
         {
-            /*
-            if (state->g_st == GS_CONNECT || state->g_st == GS_GAME)
-            {
-                w_logwrite("A: [DENIED] Game is already created, please wait.", V_ALL);
-                send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already created, please wait.");
-                return 0;
-            }
-            */
-            //state == GS_NO, all good
             w_logwrite("A: Received 'start' command.", V_ALL);
             state->g_st = GS_CONNECT;  //waiting for connections now
             state->p1_sock = sock;     //mark current player as first
@@ -250,6 +241,7 @@ int main(int argc, char *argv[])
         {
             int startpos;
 
+            w_logwrite("Can't found \\n (or start)", V_DEBUG);
             w_logwrite("A: Waiting for command", V_DEBUG);
             CHECK(rcv_msg(msq_w, BUFSIZE - 1, getpid(), MSG_NOERROR, &sock, &msg_cmd, msg), -1, "A: Error receiving message")
             if (msg_cmd == CMD_STOP)
@@ -267,20 +259,29 @@ int main(int argc, char *argv[])
             w_logwrite(msg, V_ALL);
             if (!cmdstr || *cmdstart == '\0')
             {
+                w_logwrite("A: str empty, free-malloc", V_DEBUG);
                 free(cmdstr); //safe for NULL
                 cmdstr = malloc(strlen(msg) + 1);
                 strcpy(cmdstr, msg);
                 cmdstart = cmdstr;
+                w_logwrite("A: cmdstr = cmdstart = ", V_DEBUG);
+                w_logwrite(cmdstr, V_DEBUG);
             }
             else
             {
+                w_logwrite("A: str not empty, realloc", V_DEBUG);
                 startpos = cmdstart - cmdstr; //remember startpos (realloc changes ptrs)
                 cmdstr = realloc(cmdstr, strlen(cmdstr) + strlen(msg) + 1);
+                w_logwrite("A: cmdstr = ", V_DEBUG);
+                w_logwrite(cmdstr, V_DEBUG);
                 strcat(cmdstr, msg);
                 cmdstart = cmdstr + startpos; //correct startpos
+                w_logwrite("A: cmdstart = ", V_DEBUG);
+                w_logwrite(cmdstart, V_DEBUG);
             }
             cmdend = strchr(cmdstart, '\n');
         }
+        w_logwrite("Found \\n", V_DEBUG);
         if (stop_flag)
             break;
         //Got full command, mark its end
