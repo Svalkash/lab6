@@ -6,18 +6,36 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
 #include <sys/msg.h>
 
 #define BUFSIZE 80
 
-typedef struct msgbuf {
+typedef enum cmd_e
+{
+    CMD_PRINT, //M - print to log
+    CMD_SEND, //M - send message to socket
+    CMD_SHOT,   //E
+    CMD_SAVE,   //E
+    CMD_START, //A - create game - internal
+    CMD_JOIN,   //A - join game - internal
+    CMD_A,      //A - interpret command
+    CMD_GEN,    //G - select first attacker and clear game score
+    CMD_INIT,   //G - reset structure to 0
+    CMD_STOP,    //A - stop
+    CMD_UNKN
+} cmd_t;
+
+typedef struct msg_s
+{
     long mtype;
-    int a;
+    int sock;
+    cmd_t cmd;
     char mtext[BUFSIZE];
-} msgbuf;
+} msg_t;
 
 int rcv_msg(int msqid, int msgsz, long msgtyp, int msgflg, char *str) {
-    msgbuf msg;
+    msg_t msg;
     int rec;
 
     msg.mtype = msgtyp;
@@ -28,7 +46,8 @@ int rcv_msg(int msqid, int msgsz, long msgtyp, int msgflg, char *str) {
     }
     printf("%d bytes received\n", rec);
     printf("Received message (type %d): %s\n", msg.mtype, msg.mtext);
-    printf("%d", msg.a);
+    printf("sock %d\n", msg.sock);
+    printf("cmd %d\n", msg.cmd);
     strncpy(str, msg.mtext, BUFSIZE - 1);
     str[BUFSIZE] = '\0';
     return 0;
@@ -60,6 +79,6 @@ main(int argc, char *argv[])
         return errno;
     }
 
-    printf("\Receiving message...\n");
+    printf("Receiving message...\n");
     return rcv_msg(msqid, atoi(argv[3]), atoi(argv[2]), msgflg, str);
 }

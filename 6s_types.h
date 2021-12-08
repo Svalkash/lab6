@@ -31,9 +31,9 @@
         }                       \
     }
 
-#define CHECK_EAGAIN(msg)    \
+#define CHECK_SPECIFIC(msg, errval)    \
     {                        \
-        if (errno != EAGAIN) \
+        if (errno != errval) \
         {                    \
             perror(msg);     \
             exit(errno);     \
@@ -76,7 +76,6 @@ typedef enum cmd_e
 
 typedef enum gstate_e
 {
-    GS_INIT,
     GS_NO,
     GS_CONNECT,
     GS_GEN,

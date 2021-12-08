@@ -9,6 +9,7 @@ shmstr_t *state; //shared structure
 int w_logwrite(char *str, verb_t print_v)
 {
     return send_msg(msq_m, T_PRINT, print_v, CMD_PRINT, str);
+    return 0;
 }
 
 int w_logwrite_int(char *str, long num, verb_t print_v)
@@ -16,7 +17,7 @@ int w_logwrite_int(char *str, long num, verb_t print_v)
     char outstr[BUFSIZE];
 
     sprintf(outstr, "%s %ld", str, num);
-    w_logwrite(outstr, print_v);
+    return w_logwrite(outstr, print_v);
 }
 
 int main(int argc, char *argv[])
@@ -43,9 +44,27 @@ int main(int argc, char *argv[])
 
     //start
     CHECK(rcv_msg(msq_w, BUFSIZE - 1, getpid(), MSG_NOERROR, &sock, &msg_cmd, msg), -1, "G: Error receiving message")
-    if (msg_cmd != CMD_GEN)
-        w_logwrite("G: [ERROR] Received non-GEN command", V_MAIN);
-    else
+    if (msg_cmd == CMD_INIT) {
+        //lock and init memory
+        semop(shm_sem, sop_lock, 2);
+        state->p1_sock = -1;
+        state->p2_sock = -1;
+        state->pass[0] = '\0';
+        state->first_turn = -1;
+        state->min_rounds = -1;
+        state->g_st = GS_NO;
+        state->p1_st = PS_NO;
+        state->p2_st = PS_NO;
+        state->p1_zone = -1;
+        state->p2_zone = -1;
+        state->p1_score = -1;
+        state->p2_score = -1;
+        state->round = -1;
+        state->turn = -1;
+        w_logwrite("G: Game state reset.", V_ALL);
+        semop(shm_sem, sop_unlock, 1);
+    }
+    else if (msg_cmd == CMD_GEN)
     {
         //lock and init memory
         semop(shm_sem, sop_lock, 2);
@@ -71,9 +90,12 @@ int main(int argc, char *argv[])
         send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf);
         semop(shm_sem, sop_unlock, 1);
     }
+    else
+        w_logwrite("G: [ERROR] Received unexpected command", V_MAIN);
 
     w_logwrite("G: Done, stopping..", V_ALL);
     shmdt(state);
     w_logwrite("G: Stopped.", V_ALL);
+    w_logwrite_int("My pid was:", getpid(), V_DEBUG);
     return 0;
 }

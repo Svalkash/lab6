@@ -149,7 +149,10 @@ int main(int argc, char *argv[])
 
         do {
             scanf("%[^\n]%*c", snd_msg);
-            if (check_disconnect(snd_msg)) {
+            strcat(snd_msg, "\n");
+            printf(snd_msg);
+            if (check_disconnect(snd_msg))
+            {
                 printf("Disconnecting...\n");
                 shutdown(sock, SHUT_WR);
                 break;

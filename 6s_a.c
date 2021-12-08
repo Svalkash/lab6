@@ -93,10 +93,6 @@ int decode(char *cmdstr, int sock)
                                                                   : 0);
     switch (state->g_st)
     {
-    GS_INIT:
-        w_logwrite("A: [ERROR] WHO HAS SENT THE COMMAND BEFORE SERVER START?!", V_MAIN);
-        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] WHO HAS SENT THE COMMAND BEFORE SERVER START?!\n");
-        return 0;
     GS_NO:
         if (dec_cmd == CMD_START)
         {

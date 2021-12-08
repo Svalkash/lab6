@@ -49,7 +49,7 @@ void handler_stop(int signum);
 
 verb_t verb; //how many we want to see in the log
 
-char *cfgfilename;
+char cfgfilename[NAMELEN];
 char logname[NAMELEN];
 int logfile = -1; //log file desc
 
@@ -58,13 +58,17 @@ int cfgread()
     char buf[BUFSIZE];
     int cfgfile; //cfg file desc
 
-    printf("Opening cfg file... \n");
+    if (verb == V_SCREEN)
+        printf("Opening cfg file... \n");
     CHECK(cfgfile = open(cfgfilename, O_RDONLY), -1, "Error while opening config file")
     buf[read(cfgfile, buf, BUFSIZE - 1)] = '\0';
     sscanf(buf, "%d %s", &port, logname);
-    printf("Port = %d\n", port);
-    printf("Log file name = %s\n", logname);
-    printf("Closing cfg file... \n");
+    if (verb == V_SCREEN)
+        printf("Port = %d\n", port);
+    if (verb == V_SCREEN)
+        printf("Log file name = %s\n", logname);
+    if (verb == V_SCREEN)
+        printf("Closing cfg file... \n");
     close(cfgfile);
 }
 
@@ -157,7 +161,7 @@ int sock_send(int sock_r, const char *msg)
     }
     logwrite_int("Sending to socket ", sock_r, V_DEBUG);
     logwrite(msg, V_DEBUG);
-    send(sock_r, msg, strlen(msg), 0);
+    send(sock_r, msg, strlen(msg) + 1, 0);
     if (!is_blocked)
         unblock_signal(SIGHUP);
 }
@@ -174,7 +178,7 @@ int sock_rcv(int sock_r, int pid_a)
     rcv_sz = recv(sock_r, msg, BUFSIZE - 1, 0); //-1 so \0 will be conserved
     if (rcv_sz == -1)
     {
-        CHECK_EAGAIN("Error while receiving data from socket")
+        CHECK_SPECIFIC("Error while receiving data from socket", EAGAIN)
         if (!is_blocked)
             unblock_signal(SIGHUP);
         return 0;
@@ -201,6 +205,8 @@ int sock_listen(int port)
     CHECK(sock = socket(PF_INET, SOCK_STREAM, 0), -1, "Error while creating socket")
     fcntl(sock, F_SETFL, O_NONBLOCK | fcntl(sock_l, F_GETFL));
     sa.sin_family = AF_INET;
+    if (port < 1024)
+        logwrite("WARNING: Trying to use root-only socket", V_ALL);
     sa.sin_port = htons(port);
     sa.sin_addr.s_addr = INADDR_ANY;
     CHECK(bind(sock, (struct sockaddr *)&sa, sizeof(sa)), -1, "Error while binding socket")
@@ -224,7 +230,7 @@ int sock_accept(int sock_l)
         block_signal(SIGHUP);
     if ((sock_r = accept(sock_l, (struct sockaddr *)&sa_r, (socklen_t *)&sa_r_len)) == -1)
     {
-        CHECK_EAGAIN("Error while accepting connection")
+        CHECK_SPECIFIC("Error while accepting connection", EAGAIN)
     if (!is_blocked)
         unblock_signal(SIGHUP);
         return 0;
@@ -237,7 +243,7 @@ int sock_accept(int sock_l)
     cons[cons_size - 1].addr = sa_r;
     if (!(cons[cons_size - 1].pid_a = fork()))
         execl("6s_a", "6s_a", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
-    logwrite_int("Created new fork (A):", cons[cons_size - 1].pid_a, V_ALL);
+    logwrite_int("Created new fork (A):", cons[cons_size - 1].pid_a, V_DEBUG);
     sock_send(sock_r, hello_msg); //send hello msg
     if (!is_blocked)
         unblock_signal(SIGHUP);
@@ -259,7 +265,7 @@ void sock_closeall(int hard, const char *msg) { //if hard, we don't send anythin
     int is_blocked = check_mask(SIGHUP);
     if (!is_blocked)
         block_signal(SIGHUP);
-    kill(0, SIGTERM); //stop ALL processes
+    kill(0, SIGTERM); //stop ALL processes hard and rough
     semfix(shm_sem, 0); //fix my semaphore
     //don't need to lock the structure now - I'm alone!
     eat_msgs(msq_w, 0); //delete ALL messages TO workers
@@ -270,19 +276,23 @@ void sock_closeall(int hard, const char *msg) { //if hard, we don't send anythin
     else
         while (check_msg(0, 0, 1)) //send all remaining stuff,
             ;
-    CHECK_EAGAIN("Error receiving message")
+    CHECK_SPECIFIC("Error receiving message", ENOMSG)
     if (!hard) {
         //send last words to everyone
-        if (!hard && msg)
+        if (msg)
             for (int i = 0; i < cons_size; ++i)
                 sock_send(cons[i].sock, msg);
         logwrite("Last messages sent", V_ALL);
-        //gameovers
-        print_gameover(gameover, 0, 1, state->p1_score, state->p2_score);
-        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
-        print_gameover(gameover, 0, 2, state->p1_score, state->p2_score);
-        send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
-        logwrite("Gameovers sent", V_ALL);
+        if (state->g_st == GS_GAME) {
+            //gameovers
+            print_gameover(gameover, 0, 1, state->p1_score, state->p2_score);
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
+            print_gameover(gameover, 0, 2, state->p1_score, state->p2_score);
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
+            logwrite("Gameovers sent", V_ALL);
+        }
+        else
+            logwrite("No game - no gameovers", V_ALL);
     }
     //close r-sockets
     for (int i = 0; i < cons_size; ++i) {
@@ -343,7 +353,7 @@ int sock_fin(int sock)
 
     //clear A's messages
     eat_msgs(msq_w, scon->pid_a);
-    send_msg(msq_w, scon->pid_a, sock, CMD_A, ""); //So A will be 'stopped' with messages
+    send_msg(msq_w, scon->pid_a, sock, CMD_STOP, ""); //So A will be 'stopped' with messages
     waitpid(scon->pid_a, NULL, 0);                   //wait for A to stop
     //send all pending messages to the client before closing the socket
     while (check_msg(scon->sock, 1, 1))
@@ -365,6 +375,8 @@ int sock_fin(int sock)
 //------------------------------------------------------------------------------------------------------
 
 void server_init() {
+    int pid_f;
+
     //create basic structures and MQs
     logwrite("Creating basic structures...", V_ALL);
     CHECK(msq_m = msgget(IPC_PRIVATE, IPC_CREAT | 0666), -1, "Error while creating MQ_m")
@@ -377,10 +389,19 @@ void server_init() {
     CHECK(shm_sem = semget(IPC_PRIVATE, 1, IPC_CREAT), -1, "Error while creating semaphore")
     logwrite("Semaphore created", V_ALL);
     //now make 'string' versions of IDs
+    //now make 'string' versions of IDs
     sprintf(str_msq_m, "%d", msq_m);
     sprintf(str_msq_w, "%d", msq_w);
     sprintf(str_shm, "%d", shm);
     sprintf(str_shm_sem, "%d", shm_sem);
+    //reset game structure
+    if (!(pid_f = fork()))
+        execl("6s_g", "6s_g", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
+    logwrite_int("Created new fork (G):", pid_f, V_DEBUG);
+    send_msg(msq_w, pid_f, state->p1_sock, CMD_INIT, "");
+    logwrite_int("Waiting for generator...", pid_f, V_DEBUG);
+    waitpid(pid_f, NULL, 0);  //wait for gen to init structure
+    logwrite_int("Init generator done.", pid_f, V_DEBUG);
 }
 
 void server_stop() {
@@ -410,7 +431,7 @@ int check_msg(int msgtype, int send_only, int print_only)
     msglen = rcv_msg(msq_m, BUFSIZE - 1, msgtype, IPC_NOWAIT | MSG_NOERROR, &sock, &cmd, msg);
     if (msglen == -1)
     {
-        CHECK_EAGAIN("Error while receiving message")
+        CHECK_SPECIFIC("Error while receiving message", ENOMSG)
         if (!is_blocked)
             unblock_signal(SIGHUP);
         return 0;
@@ -437,13 +458,15 @@ int check_msg(int msgtype, int send_only, int print_only)
         }
         if (!(pid_f = fork()))
             execl("6s_e", "6s_e", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
-        logwrite_int("Created new fork (E):", pid_f, V_ALL);
+        logwrite_int("Created new fork (E):", pid_f, V_DEBUG);
         send_msg(msq_w, pid_f, sock, cmd, msg);
         break;
     case CMD_GEN:
         if (!(pid_f = fork()))
             execl("6s_g", "6s_g", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
-        logwrite_int("Created new fork (G):", pid_f, V_ALL);
+        logwrite_int("Created new fork (G):", pid_f, V_DEBUG);
+        send_msg(msq_w, pid_f, state->p1_sock, CMD_GEN, "");
+        //waitpid(pid_f, NULL, 0); //wait for gen to complete
         break;
     default:
         logwrite("Error command:", V_MAIN);
@@ -474,6 +497,7 @@ void handler_cfg(int signum)
 
 void handler_stop(int signum)
 {
+    printf("handler called");
     //ending phase: delete all created stuff.
     sock_closeall(0, "Server stopped."); //sockets
     server_stop(); //all MQ and trash
@@ -490,10 +514,10 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: %s <filecfg> <verbosity>\n", argv[0]);
         return -1;
     }
-    strcpy(cfgfilename, argv[2]);
+    strcpy(cfgfilename, argv[1]);
     if (argc == 3)
     {
-        int vint = atoi(argv[3]);
+        int vint = atoi(argv[2]);
         if (vint < (int)V_MAIN || vint > (int)V_SCREEN)
         {
             fprintf(stderr, "Wrong verbosity value, supported - from %d to %d\n", (int)V_MAIN, (int)V_SCREEN);
@@ -501,6 +525,10 @@ int main(int argc, char *argv[])
         }
         else
             verb = (verb_t)vint;
+    if (verb == V_SCREEN) {
+        fprintf(stderr, "Log file - %s\n", cfgfilename);
+        fprintf(stderr, "Verb - %d\n", (int)verb);
+    }
     }
     else
         verb = V_ALL;
@@ -514,9 +542,9 @@ int main(int argc, char *argv[])
     //open connect socket
     sock_l = sock_listen(port);
     //prepare interrupt handlers
-    //TODO: SIGTERM handler (SIGUSR1 for now)
     signal(SIGHUP, handler_cfg);
-    signal(SIGUSR1, handler_stop);
+    signal(SIGTERM, handler_stop);
+    signal(SIGINT, handler_stop);
     //TODO: start generator ONCE and wait for it.
     while (1)
     {

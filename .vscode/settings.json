@@ -12,6 +12,7 @@
         "6s_types.h": "c",
         "shm.h": "c",
         "errno.h": "c",
-        "cmath": "c"
+        "cmath": "c",
+        "stdlib.h": "c"
     }
 }

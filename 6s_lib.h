@@ -29,6 +29,10 @@ int check_mask(int signal)
     return sigismember(&mask, signal);
 }
 
+size_t msg_size(msg_t msg) { //requires null-terminated string inside, else fails
+    return sizeof(int) + sizeof(cmd_t) + strlen(msg.mtext) + 1; //type ignored
+}
+
 int send_msg(int msqid, int mtype, int sock, cmd_t cmd, const char *str)
 {
     msg_t msg;
@@ -37,8 +41,14 @@ int send_msg(int msqid, int mtype, int sock, cmd_t cmd, const char *str)
     msg.sock = sock;
     msg.cmd = cmd;
     strncpy(msg.mtext, str, BUFSIZE - 1);
+    /*
+    printf("S type %d\n", mtype);
+    printf("S sock %d\n", sock);
+    printf("S cmd %d\n", cmd);
+    printf("S text %s\n", str);
+    */
     msg.mtext[BUFSIZE - 1] = '\0';
-    CHECK(msgsnd(msqid, &msg, strlen(str) + 1, 0), -1, "Error while sending message")
+    CHECK(msgsnd(msqid, &msg, msg_size(msg), 0), -1, "Error while sending message")
     return 0;
 }
 
@@ -48,7 +58,15 @@ int rcv_msg(int msqid, int msgsz, long msgtyp, int msgflg, int *sock, cmd_t *cmd
     int rec;
 
     msg.mtype = msgtyp;
-    CHECK(rec = msgrcv(msqid, &msg, msgsz, msgtyp, msgflg), -1, "Error while receiving message")
+    rec = msgrcv(msqid, &msg, msgsz, msgtyp, msgflg);
+    if (rec == -1)
+        return -1;
+    /*
+    printf("R type %d\n", msg.mtype);
+    printf("R sock %d\n", msg.sock);
+    printf("R cmd %d\n", msg.cmd);
+    printf("R text %s\n", msg.mtext);
+    */
     *sock = msg.sock;
     *cmd = msg.cmd;
     if (rec >= BUFSIZE - 1)
@@ -65,7 +83,7 @@ int eat_msgs(int msq, int type) {
 
     while (rcv_msg(msq, BUFSIZE - 1, type, IPC_NOWAIT | MSG_NOERROR, &sock, &cmd, msg) != -1)
         ;
-    CHECK_EAGAIN("Error while receiving message")
+    CHECK_SPECIFIC("Error while receiving message", ENOMSG)
 }
 
 void semfix(int sem, int val) { semctl(sem, 0, SETVAL, val); }
