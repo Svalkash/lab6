@@ -29,7 +29,8 @@ int check_mask(int signal)
     return sigismember(&mask, signal);
 }
 
-size_t msg_size(msg_t msg) { //requires null-terminated string inside, else fails
+size_t msg_size(msg_t msg)
+{                                                               //requires null-terminated string inside, else fails
     return sizeof(int) + sizeof(cmd_t) + strlen(msg.mtext) + 1; //type ignored
 }
 
@@ -76,10 +77,11 @@ int rcv_msg(int msqid, int msgsz, long msgtyp, int msgflg, int *sock, cmd_t *cmd
     return rec;
 }
 
-int eat_msgs(int msq, int type) {
+int eat_msgs(int msq, int type)
+{
     char msg[BUFSIZE]; //dummy for receiving
-    int sock; //dummy for receiving
-    cmd_t cmd; //dummy for receiving
+    int sock;          //dummy for receiving
+    cmd_t cmd;         //dummy for receiving
 
     while (rcv_msg(msq, BUFSIZE - 1, type, IPC_NOWAIT | MSG_NOERROR, &sock, &cmd, msg) != -1)
         ;
@@ -88,7 +90,8 @@ int eat_msgs(int msq, int type) {
 
 void semfix(int sem, int val) { semctl(sem, 0, SETVAL, val); }
 
-int randint() {
+int randint()
+{
     //YES, I KNOW THAT SIZEOF(INT) = 4!
     int rdesc;
     char buf[sizeof(int)];
@@ -102,11 +105,13 @@ int randint() {
     return rint;
 }
 
-char *print_gameover(char *buf, int gameover, int player, int p1_score, int p2_score) {
+char *print_gameover(char *buf, int gameover, int player, int p1_score, int p2_score)
+{
     char scorestr[BUFSIZE];
     int score_y, score_e;
 
-    switch(player) {
+    switch (player)
+    {
     case 1:
         score_y = p1_score;
         score_e = p2_score;
@@ -130,7 +135,8 @@ char *print_gameover(char *buf, int gameover, int player, int p1_score, int p2_s
     sprintf(scorestr, "  Enemy score:  %d  \n", score_e);
     strcat(buf, scorestr);
     strcat(buf, "--------------------\n");
-    if (gameover) {
+    if (gameover)
+    {
         if (score_y > score_e)
             strcat(buf, "      YOU  WIN!     \n");
         else
@@ -140,7 +146,8 @@ char *print_gameover(char *buf, int gameover, int player, int p1_score, int p2_s
     return buf;
 }
 
-char *print_turn(char *buf, int round, int turn, int attack) {
+char *print_turn(char *buf, int round, int turn, int attack)
+{
     char str[BUFSIZE];
 
     strcat(buf, "--------------------\n");
@@ -158,7 +165,8 @@ char *print_turn(char *buf, int round, int turn, int attack) {
     return buf;
 }
 
-char *print_res(char *buf, int result, int p1_score, int p2_score) {
+char *print_res(char *buf, int result, int p1_score, int p2_score)
+{
     char str[BUFSIZE];
 
     strcat(buf, "--------------------\n");

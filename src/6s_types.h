@@ -31,13 +31,13 @@
         }                       \
     }
 
-#define CHECK_SPECIFIC(msg, errval)    \
-    {                        \
-        if (errno != errval) \
-        {                    \
-            perror(msg);     \
-            exit(errno);     \
-        }                    \
+#define CHECK_SPECIFIC(msg, errval) \
+    {                               \
+        if (errno != errval)        \
+        {                           \
+            perror(msg);            \
+            exit(errno);            \
+        }                           \
     }
 
 #define BLOCKRUN(FUN, SIGNAL)                \
@@ -62,15 +62,15 @@ typedef enum verb_e
 typedef enum cmd_e
 {
     CMD_PRINT, //M - print to log
-    CMD_SEND, //M - send message to socket
-    CMD_SHOT,   //E
-    CMD_SAVE,   //E
+    CMD_SEND,  //M - send message to socket
+    CMD_SHOT,  //E
+    CMD_SAVE,  //E
     CMD_START, //A - create game - internal
-    CMD_JOIN,   //A - join game - internal
-    CMD_A,      //A - interpret command
-    CMD_GEN,    //G - select first attacker and clear game score
-    CMD_INIT,   //G - reset structure to 0
-    CMD_STOP,    //A - stop
+    CMD_JOIN,  //A - join game - internal
+    CMD_A,     //A - interpret command
+    CMD_GEN,   //G - select first attacker and clear game score
+    CMD_INIT,  //G - reset structure to 0
+    CMD_STOP,  //A - stop
     CMD_UNKN
 } cmd_t;
 

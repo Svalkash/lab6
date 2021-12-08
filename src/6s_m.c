@@ -183,7 +183,8 @@ int sock_rcv(int sock_r, int pid_a)
             unblock_signal(SIGHUP);
         return 0;
     }
-    else if (rcv_sz == 0) {
+    else if (rcv_sz == 0)
+    {
         logwrite_int("Socket down: ", sock_r, V_DEBUG);
         sock_fin(sock_r);
         return -2;
@@ -191,7 +192,7 @@ int sock_rcv(int sock_r, int pid_a)
     msg[rcv_sz] = '\0';
     logwrite_int("Received from socket: ", sock_r, V_DEBUG);
     logwrite(msg, V_DEBUG);
-    logwrite_int("size: ", rcv_sz,  V_DEBUG);
+    logwrite_int("size: ", rcv_sz, V_DEBUG);
     //send command to A
     send_msg(msq_w, pid_a, sock_r, CMD_A, msg);
     if (!is_blocked)
@@ -233,8 +234,8 @@ int sock_accept(int sock_l)
     if ((sock_r = accept(sock_l, (struct sockaddr *)&sa_r, (socklen_t *)&sa_r_len)) == -1)
     {
         CHECK_SPECIFIC("Error while accepting connection", EAGAIN)
-    if (!is_blocked)
-        unblock_signal(SIGHUP);
+        if (!is_blocked)
+            unblock_signal(SIGHUP);
         return 0;
     }
     logwrite_int("Connection accepted:", sock_r, V_ALL);
@@ -260,14 +261,15 @@ con_t *sock_findcon(int sock_r)
     return NULL;
 }
 
-void sock_closeall(int hard, const char *msg) { //if hard, we don't send anything to clients
+void sock_closeall(int hard, const char *msg)
+{ //if hard, we don't send anything to clients
     char gameover[BUFSIZE];
 
     logwrite("Closing all connections...", V_MAIN);
     int is_blocked = check_mask(SIGHUP);
     if (!is_blocked)
         block_signal(SIGHUP);
-    kill(0, SIGTERM); //stop ALL processes hard and rough
+    kill(0, SIGTERM);   //stop ALL processes hard and rough
     semfix(shm_sem, 0); //fix my semaphore
     //don't need to lock the structure now - I'm alone!
     eat_msgs(msq_w, 0); //delete ALL messages TO workers
@@ -279,13 +281,15 @@ void sock_closeall(int hard, const char *msg) { //if hard, we don't send anythin
         while (check_msg(0, 0, 1)) //send all remaining stuff,
             ;
     CHECK_SPECIFIC("Error receiving message", ENOMSG)
-    if (!hard) {
+    if (!hard)
+    {
         //send last words to everyone
         if (msg)
             for (int i = 0; i < cons_size; ++i)
                 sock_send(cons[i].sock, msg);
         logwrite("Last messages sent", V_ALL);
-        if (state->g_st == GS_GAME) {
+        if (state->g_st == GS_GAME)
+        {
             //gameovers
             print_gameover(gameover, 0, 1, state->p1_score, state->p2_score);
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
@@ -297,7 +301,8 @@ void sock_closeall(int hard, const char *msg) { //if hard, we don't send anythin
             logwrite("No game - no gameovers", V_ALL);
     }
     //close r-sockets
-    for (int i = 0; i < cons_size; ++i) {
+    for (int i = 0; i < cons_size; ++i)
+    {
         shutdown(cons[i].sock, SHUT_RDWR);
         close(cons[i].sock); //because this IS an emergency
     }
@@ -311,7 +316,6 @@ void sock_closeall(int hard, const char *msg) { //if hard, we don't send anythin
     if (!is_blocked)
         unblock_signal(SIGHUP);
     logwrite("All sockets closed.", V_MAIN);
-
 }
 
 int sock_fin(int sock)
@@ -326,38 +330,39 @@ int sock_fin(int sock)
     //check if THIS client was a player and do a gameover
     semop(shm_sem, sop_lock, 2);
     if (scon->sock == state->p1_sock || scon->sock == state->p2_sock)
-        {
-            logwrite("sock_fin: Socket was a player, endgame..", V_DEBUG);
-            //basic messages
-            if (scon->sock == state->p1_sock) // || scon->sock == state->p2_sock)
-                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "You are disconnected.");
+    {
+        logwrite("sock_fin: Socket was a player, endgame..", V_DEBUG);
+        //basic messages
+        if (scon->sock == state->p1_sock) // || scon->sock == state->p2_sock)
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "You are disconnected.");
+        else
+            send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "You are disconnected.");
+        if (state->g_st == GS_GAME)
+        {                                     //send gameover only in the game
+            if (scon->sock == state->p1_sock) //don't send this in connect phase
+                send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Player 1 was disconnected.");
             else
-                send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "You are disconnected.");
-            if (state->g_st == GS_GAME) {  //send gameover only in the game
-                if (scon->sock == state->p1_sock) //don't send this in connect phase
-                    send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Player 1 was disconnected.");
-                else
-                    send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 was disconnected.");
-                //gameovers
-                print_gameover(gameover, 0, 1, state->p1_score, state->p2_score);
-                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
-                print_gameover(gameover, 0, 2, state->p1_score, state->p2_score);
-                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
-                //wipe state
-                state->p1_sock  = -1;
-                state->p2_sock  = -1;
-                state->pass[0]  = '\0';
-                state->p1_st    = PS_NO;
-                state->p2_st    = PS_NO;
-                state->g_st     = GS_NO;
-            }
+                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 was disconnected.");
+            //gameovers
+            print_gameover(gameover, 0, 1, state->p1_score, state->p2_score);
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
+            print_gameover(gameover, 0, 2, state->p1_score, state->p2_score);
+            send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, gameover);
+            //wipe state
+            state->p1_sock = -1;
+            state->p2_sock = -1;
+            state->pass[0] = '\0';
+            state->p1_st = PS_NO;
+            state->p2_st = PS_NO;
+            state->g_st = GS_NO;
         }
+    }
     semop(shm_sem, sop_unlock, 1);
 
     //clear A's messages
     eat_msgs(msq_w, scon->pid_a);
     send_msg(msq_w, scon->pid_a, sock, CMD_STOP, ""); //So A will be 'stopped' with messages
-    waitpid(scon->pid_a, NULL, 0);                   //wait for A to stop
+    waitpid(scon->pid_a, NULL, 0);                    //wait for A to stop
     //send all pending messages to the client before closing the socket
     while (check_msg(scon->sock, 1, 1))
         ;
@@ -379,7 +384,8 @@ int sock_fin(int sock)
 //------------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------------
 
-void server_init() {
+void server_init()
+{
     int pid_f;
 
     //create basic structures and MQs
@@ -389,7 +395,7 @@ void server_init() {
     CHECK(msq_w = msgget(IPC_PRIVATE, IPC_CREAT | 0666), -1, "Error while creating MQ_w")
     logwrite("MQ_w created", V_ALL);
     CHECK(shm = shmget(IPC_PRIVATE, sizeof(shmstr_t), IPC_CREAT | 0666), -1, "Error while creating shmemory")
-    CHECK(state = (shmstr_t*)shmat(shm, NULL, 0), NULL, "Error attaching memory")
+    CHECK(state = (shmstr_t *)shmat(shm, NULL, 0), NULL, "Error attaching memory")
     logwrite("ShM created and attached", V_ALL);
     CHECK(shm_sem = semget(IPC_PRIVATE, 1, IPC_CREAT), -1, "Error while creating semaphore")
     logwrite("Semaphore created", V_ALL);
@@ -404,10 +410,11 @@ void server_init() {
         execl("6s_g.exe", "6s_g.exe", str_msq_m, str_msq_w, str_shm, str_shm_sem, NULL);
     logwrite_int("Created new fork (G):", pid_f, V_DEBUG);
     send_msg(msq_w, pid_f, state->p1_sock, CMD_INIT, "");
-    waitpid(pid_f, NULL, 0);  //wait for gen to init structure
+    waitpid(pid_f, NULL, 0); //wait for gen to init structure
 }
 
-void server_stop() {
+void server_stop()
+{
     logwrite("Stopping server...", V_MAIN);
     msgctl(msq_m, IPC_RMID, NULL);
     msgctl(msq_w, IPC_RMID, NULL);
@@ -449,7 +456,8 @@ int check_msg(int msgtype, int send_only, int print_only)
         break;
     case CMD_SEND:
         //create E and send command
-        if (!(scon = sock_findcon(sock))) {
+        if (!(scon = sock_findcon(sock)))
+        {
             logwrite_int("ERROR: Tried work with closed socket:", sock, V_MAIN); //sanity check
             return -1;
         }
@@ -460,7 +468,8 @@ int check_msg(int msgtype, int send_only, int print_only)
     case CMD_START:
     case CMD_JOIN:
         //create E and send command
-        if (!(scon = sock_findcon(sock))) {
+        if (!(scon = sock_findcon(sock)))
+        {
             logwrite_int("ERROR: Tried work with closed socket:", sock, V_MAIN); //sanity check
             return -1;
         }
@@ -496,7 +505,8 @@ void handler_cfg(int signum)
     logwrite("Log re-opened.", V_MAIN);
     //TODO: change ports.
     port_changed = (old_port != port);
-    if (port_changed) {
+    if (port_changed)
+    {
         sock_closeall(0, "Server disconnected."); //sockets
         logwrite("Socket changed.", V_MAIN);
         sock_l = sock_listen(port);
@@ -507,7 +517,7 @@ void handler_stop(int signum)
 {
     //ending phase: delete all created stuff.
     sock_closeall(0, "Server stopped."); //sockets
-    server_stop(); //all MQ and trash
+    server_stop();                       //all MQ and trash
     //closing log
     logwrite("Server stopped. Closing the log...", V_MAIN);
     logclose();
@@ -570,7 +580,7 @@ int main(int argc, char *argv[])
     }
     //ending phase: delete all created stuff.
     sock_closeall(0, "Server stopped."); //sockets
-    server_stop(); //all MQ and trash
+    server_stop();                       //all MQ and trash
     //closing log
     logwrite("Server stopped. Closing the log...", V_MAIN);
     logclose();

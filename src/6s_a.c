@@ -31,25 +31,25 @@ int digits_only(char *str)
     return 1;
 }
 
-int decode(char *cmdstr, int sock)
+cmd_t decode(char *cmdstr, int sock)
 {
     char *cmd, *arg, *trash;
     cmd_t dec_cmd;
     int player;
 
+    w_logwrite("A: Decoding command:", V_DEBUG);
+    w_logwrite(cmdstr, V_DEBUG);
+
     //decode command
     cmd = strtok(cmdstr, " \t");
     arg = strtok(NULL, " \t");
     trash = strtok(NULL, " \t");
-
-    w_logwrite("A: Decoding command:", V_DEBUG);
-    w_logwrite(cmdstr, V_DEBUG);
     //common errors
     if (!cmd)
     {
         w_logwrite("A: [ERROR] Empty command!", V_ALL);
         send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Empty command!\n");
-        return 0;
+        return CMD_UNKN;
     }
     //finally decode the command
     dec_cmd = !strcmp(cmd, "start")  ? CMD_START
@@ -61,64 +61,64 @@ int decode(char *cmdstr, int sock)
     {
         w_logwrite("A: [ERROR] Unknown command!", V_ALL);
         send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Unknown command!\n");
-        return 0;
+        return CMD_UNKN;
     }
     if (!arg)
     {
         w_logwrite("A: [ERROR] No arguments for the command!", V_ALL);
         send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] No arguments for the command!\n");
-        return 0;
+        return CMD_UNKN;
     }
     if (trash)
     {
         w_logwrite("A: [ERROR] Trash at the end of the command!", V_ALL);
         send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Trash at the end of the command!\n");
-        return 0;
+        return CMD_UNKN;
     }
     if ((dec_cmd == CMD_START || dec_cmd == CMD_JOIN) && strlen(arg) > NAMELEN - 1)
     {
         w_logwrite("A: [ERROR] Password is too long!", V_ALL);
         send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Password is too long!\n");
-        return 0;
+        return CMD_UNKN;
     }
     if ((dec_cmd == CMD_SHOT || dec_cmd == CMD_SAVE) && (!digits_only(arg) || atoi(arg) < 0 || atoi(arg) > 10))
-        {
-            w_logwrite("A: [ERROR] Invalid zone number!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Invalid zone number!\n");
-            return 0;
-        }
+    {
+        w_logwrite("A: [ERROR] Invalid zone number!", V_ALL);
+        send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Invalid zone number!\n");
+        return CMD_UNKN;
+    }
     //here we look at the current state, so lock it
     semop(shm_sem, sop_lock, 2);
     player = (sock == state->p1_sock ? 1 : sock == state->p2_sock ? 2
                                                                   : 0);
     switch (state->g_st)
     {
-    GS_NO:
+    case GS_NO:
         if (dec_cmd == CMD_START)
         {
             w_logwrite("A: Received 'start' command.", V_ALL);
-            state->g_st = GS_CONNECT;  //waiting for connections now
-            state->p1_sock = sock;     //mark current player as first
-            state->p1_st = PS_INIT; //he won't send anything though
+            state->g_st = GS_CONNECT; //waiting for connections now
+            state->p1_sock = sock;    //mark current player as first
+            state->p1_st = PS_INIT;   //he won't send anything though
             strcpy(state->pass, arg);
             w_logwrite("A: New password:", V_ALL);
             w_logwrite(arg, V_ALL);
             w_logwrite("A: Waiting for player 2...", V_ALL);
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Game successfully created, waiting for player 2...\n"); //notify player 1
-            return 1;
+            break;
         }
         else
         {
             w_logwrite("A: [ERROR] Game is not created yet!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game is not created yet!\n");
-            return 0;
+            break;
         }
-    GS_CONNECT:
+    case GS_CONNECT:
         if (dec_cmd == CMD_START)
         {
             w_logwrite("A: [DENIED] Game is already created, but you can join it.", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already created, but you can join it.\n");
-            return 0;
+            break;
         }
         else if (dec_cmd == CMD_JOIN)
         {
@@ -127,11 +127,11 @@ int decode(char *cmdstr, int sock)
             {
                 w_logwrite("A: [DENIED] Password mismatch!", V_ALL);
                 send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Password mismatch!\n");
-                return 0;
+                break;
             }
             //password is good
-            state->g_st = GS_GEN;      //waiting for connections now
-            state->p2_sock = sock;     //mark current player as first
+            state->g_st = GS_GEN;   //waiting for connections now
+            state->p2_sock = sock;  //mark current player as first
             state->p2_st = PS_INIT; //he will WAIT
             w_logwrite("A: Player 2 joined, waiting for G...", V_ALL);
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Player 2 joined.\n");                   //notify player 1
@@ -143,47 +143,47 @@ int decode(char *cmdstr, int sock)
         {
             w_logwrite("A: [ERROR] Game is not started yet!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game is not started yet!\n");
-            return 0;
+            break;
         }
-    GS_GEN:
+    case GS_GEN:
         if (dec_cmd == CMD_START || dec_cmd == CMD_JOIN)
         {
             w_logwrite("A: [DENIED] Game is already started, please wait.", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.\n");
-            return 0;
+            break;
         }
         else
         {
             w_logwrite("A: [ERROR] Please wait.", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Please wait.\n");
-            return 0;
+            break;
         }
-    GS_GAME:
+    case GS_GAME:
         if (dec_cmd == CMD_START || dec_cmd == CMD_JOIN)
         {
             w_logwrite("A: [DENIED] Game is already started, please wait.", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.\n");
-            return 0;
+            break;
         }
         //game command - shot/save
         if (player == 1 && state->p1_st != PS_INIT || player == 2 && state->p2_st != PS_INIT)
         {
             w_logwrite("A: [DENIED] You have already made your turn!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You have already made your turn!\n");
-            return 0;
+            break;
         }
         //can send commands
         if (dec_cmd == CMD_SHOT && state->turn != player)
         {
             w_logwrite("A: [DENIED] You are attacking!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are attacking!\n");
-            return 0;
+            break;
         }
         if (dec_cmd == CMD_SAVE && state->turn == player)
         {
             w_logwrite("A: [DENIED] You are defending!", V_ALL);
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are defending!\n");
-            return 0;
+            break;
         }
         //command is ok, now do it and send it
         //now FOR NO REASON we send it to the executor...
@@ -201,13 +201,14 @@ int decode(char *cmdstr, int sock)
             state->p1_st = PS_EXEC;
         else
             state->p2_st = PS_EXEC;
-        return 1;
+        break;
     default:
-        w_logwrite("A: [ERROR] Incorrect state!", V_ALL);
-        return 0;
+        w_logwrite_int("A: [ERROR] Incorrect state!: ", state->g_st, V_MAIN);
+        break;
     }
     //We're done here, now unlock
     semop(shm_sem, sop_unlock, 1);
+    return dec_cmd;
 }
 
 int main(int argc, char *argv[])
@@ -246,7 +247,7 @@ int main(int argc, char *argv[])
             CHECK(rcv_msg(msq_w, BUFSIZE - 1, getpid(), MSG_NOERROR, &sock, &msg_cmd, msg), -1, "A: Error receiving message")
             if (msg_cmd == CMD_STOP)
             {
-                stop_flag = 0;
+                stop_flag = 1;
                 break;
             }
             else if (msg_cmd != CMD_A)

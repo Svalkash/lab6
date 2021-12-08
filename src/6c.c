@@ -39,7 +39,6 @@ struct in_addr lookup_host(const char *host)
 
     CHECK(getaddrinfo(host, NULL, &hints, &res), -1, "Can't retrieve address info")
 
-
     printf("Host: %s\n", host);
     retval = ((struct sockaddr_in *)res->ai_addr)->sin_addr;
     //here it should be usable for sockets
@@ -90,12 +89,6 @@ int check_ip(char *ip)
 }
 */
 
-int check_disconnect(char *str) {
-    char *t = strtok(str, " \t");
-
-    return !t || strcmp(t, "disconnect\n") ? 0 : 1;
-}
-
 int main(int argc, char *argv[])
 {
     int ret;
@@ -113,7 +106,8 @@ int main(int argc, char *argv[])
     sa_srv.sin_family = AF_INET;
     if (inet_pton(AF_INET, argv[1], &sa_srv.sin_addr))
         printf("Address is a valid IP\n");
-    else {
+    else
+    {
         printf("Address is a hostname... maybe\n");
         sa_srv.sin_addr = lookup_host(argv[1]);
     }
@@ -121,52 +115,54 @@ int main(int argc, char *argv[])
     printf("Connecting...\n");
     sock = socket(PF_INET, SOCK_STREAM, 0);
     sa_srv.sin_family = AF_INET;
-        //check error <=0
+    //check error <=0
     CHECK(connect(sock, (struct sockaddr *)&sa_srv, sizeof(sa_srv)), -1, "Error while connecting")
     printf("Connection estabilished.\n");
-    if (fork()) {
+    if (fork())
+    {
         //reader
         int ret;
 
-        while ((ret = recv(sock, rcv_msg, BUFSIZE - 1, 0)) > 0) {
+        while ((ret = recv(sock, rcv_msg, BUFSIZE - 1, 0)) > 0)
+        {
             rcv_msg[ret] = '\0';
             printf("[SERVER] %s", rcv_msg);
         }
-        if (ret == -1) {
+        if (ret == -1)
+        {
             perror("Error while receiving data");
             kill(0, SIGTERM);
             exit(-1);
         }
-        else {
+        else
+        {
             printf("Connection closed.\n");
             kill(0, SIGTERM);
             shutdown(sock, SHUT_RDWR);
             close(sock);
         }
     }
-    else {
+    else
+    {
         //writer
         char snd_msg[BUFSIZE];
-        int ret;
 
-        do {
+        do
+        {
             scanf("%[^\n]%*c", snd_msg);
             //gets(snd_msg);
             strcat(snd_msg, "\n");
             printf(snd_msg);
             printf("size %d\n", strlen(snd_msg));
-            if (check_disconnect(snd_msg))
+            if (strstr(snd_msg, "disconnect")) //any disconnect is good, i think
             {
                 printf("Disconnecting...\n");
                 shutdown(sock, SHUT_WR);
                 break;
             }
-            //ret = send(sock, snd_msg, strlen(snd_msg), 0);
-            ret = send(sock, "a b \n", 5, 0);
-            //bruh wtf it works that way
-            printf("sent %d\n", ret);
-        } while (ret > 0);
-        if (ret == -1) {
+        } while ((ret = send(sock, snd_msg, strlen(snd_msg), 0)) > 0);
+        if (ret == -1)
+        {
             perror("Error while sending data");
             exit(-1);
         }

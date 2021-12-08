@@ -44,7 +44,8 @@ int main(int argc, char *argv[])
 
     //start
     CHECK(rcv_msg(msq_w, BUFSIZE - 1, getpid(), MSG_NOERROR, &sock, &msg_cmd, msg), -1, "G: Error receiving message")
-    if (msg_cmd == CMD_INIT) {
+    if (msg_cmd == CMD_INIT)
+    {
         //lock and init memory
         semop(shm_sem, sop_lock, 2);
         state->p1_sock = -1;

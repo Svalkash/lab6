@@ -121,11 +121,13 @@ int main(int argc, char *argv[])
         w_logwrite_int("E: rand-save (< chance): ", rand_save, V_GAME);
         if (rand_hit < p_hit)
         {
-            if (rand_save < p_save) {
+            if (rand_save < p_save)
+            {
                 w_logwrite("E: SAVE!", V_GAME);
                 save = 1;
             }
-            else {
+            else
+            {
                 w_logwrite("E: GOAL!", V_GAME);
                 goal = 1;
                 if (state->turn == 1)
@@ -134,24 +136,29 @@ int main(int argc, char *argv[])
                     ++state->p2_score;
             }
         }
-        else {
+        else
+        {
             w_logwrite("E: MISS!", V_GAME);
             miss = 1;
         }
         //send messages about results
-        print_res(sndbuf, miss ? 0 : save ? 1 : 2, state->p1_score, state->p2_score);
+        print_res(sndbuf, miss ? 0 : save ? 1
+                                          : 2,
+                  state->p1_score, state->p2_score);
         send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf);
         send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf);
         //next turn or next round?
         if (state->turn == state->first_turn) //next turn
             state->turn = state->first_turn == 1 ? 2 : 1;
-        else if (state->round < state->min_rounds || state->p1_score == state->p2_score) {//next round
+        else if (state->round < state->min_rounds || state->p1_score == state->p2_score)
+        { //next round
             ++state->round;
             state->turn = state->first_turn;
         }
         else
             gameover = 1; //well, gameover.
-        if (gameover) {
+        if (gameover)
+        {
             w_logwrite_int("E: Gameover, cleaning mess...", state->turn, V_GAME);
             print_gameover(sndbuf, 1, 1, state->p1_score, state->p2_score);
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf);
