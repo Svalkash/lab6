@@ -42,12 +42,6 @@ int send_msg(int msqid, int mtype, int sock, cmd_t cmd, const char *str)
     msg.sock = sock;
     msg.cmd = cmd;
     strncpy(msg.mtext, str, BUFSIZE - 1);
-    /*
-    printf("S type %d\n", mtype);
-    printf("S sock %d\n", sock);
-    printf("S cmd %d\n", cmd);
-    printf("S text %s\n", str);
-    */
     msg.mtext[BUFSIZE - 1] = '\0';
     CHECK(msgsnd(msqid, &msg, msg_size(msg), 0), -1, "Error while sending message")
     return 0;
@@ -62,12 +56,6 @@ int rcv_msg(int msqid, int msgsz, long msgtyp, int msgflg, int *sock, cmd_t *cmd
     rec = msgrcv(msqid, &msg, msgsz, msgtyp, msgflg);
     if (rec == -1)
         return -1;
-    /*
-    printf("R type %d\n", msg.mtype);
-    printf("R sock %d\n", msg.sock);
-    printf("R cmd %d\n", msg.cmd);
-    printf("R text %s\n", msg.mtext);
-    */
     *sock = msg.sock;
     *cmd = msg.cmd;
     if (rec >= BUFSIZE - 1)
@@ -90,18 +78,18 @@ int eat_msgs(int msq, int type)
 
 void semfix(int sem, int val) { semctl(sem, 0, SETVAL, val); }
 
-int randint()
+uint32_t randint()
 {
     //YES, I KNOW THAT SIZEOF(INT) = 4!
-    int rdesc;
-    char buf[sizeof(int)];
-    int rint = 0;
+    uint32_t rdesc;
+    char buf[sizeof(uint32_t)];
+    uint32_t rint = 0;
 
     rdesc = open("/dev/random", O_RDONLY);
-    read(rdesc, buf, sizeof(int));
+    read(rdesc, buf, sizeof(uint32_t));
     close(rdesc);
-    for (int i = 0; i < sizeof(int); ++i)
-        rint += (int)buf[i] << 8 * i;
+    for (int i = 0; i < sizeof(uint32_t); ++i)
+        rint += (uint32_t)buf[i] << 8 * i;
     return rint;
 }
 
@@ -124,6 +112,8 @@ char *print_gameover(char *buf, int gameover, int player, int p1_score, int p2_s
         printf("Error: trying to send game state to non-player");
         break;
     }
+    buf[0] = '\n';
+    buf[1] = '\0';
     strcat(buf, "--------------------\n");
     if (gameover)
         strcat(buf, " GAME     OVER      \n");
@@ -150,6 +140,8 @@ char *print_turn(char *buf, int round, int turn, int attack)
 {
     char str[BUFSIZE];
 
+    buf[0] = '\n';
+    buf[1] = '\0';
     strcat(buf, "--------------------\n");
     sprintf(str, "      ROUND  %d      \n", round);
     strcat(buf, str);
@@ -169,15 +161,18 @@ char *print_res(char *buf, int result, int p1_score, int p2_score)
 {
     char str[BUFSIZE];
 
+    buf[0] = '\n';
+    buf[1] = '\0';
     strcat(buf, "--------------------\n");
     if (result == 0)
-        strcat(buf, "Не попал      (MISS)\n");
+        strcat(buf, "Накрыл        (MISS)\n");
     else if (result == 1)
         strcat(buf, "Не пробил     (SAVE)\n");
     else
         strcat(buf, "Есть пробитие (GOAL)\n");
     strcat(buf, "--------------------\n");
     sprintf(str, "SCORE | P1: %d  P2: %d\n", p1_score, p2_score);
+    strcat(buf, str);
     strcat(buf, "--------------------\n");
     return buf;
 }

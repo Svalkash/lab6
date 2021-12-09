@@ -116,8 +116,8 @@ cmd_t decode(char *cmdstr, int sock)
     case GS_CONNECT:
         if (dec_cmd == CMD_START)
         {
-            w_logwrite("A: [DENIED] Game is already created, but you can join it.", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already created, but you can join it.\n");
+            w_logwrite("A: [DENIED] Game has already created, but you can join it.", V_ALL);
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game has already created, but you can join it.\n");
             break;
         }
         else if (dec_cmd == CMD_JOIN)
@@ -138,18 +138,19 @@ cmd_t decode(char *cmdstr, int sock)
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Клиент: Синхронизация... (loading)\n"); //notify player 1
             send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Клиент: Синхронизация... (loading)\n"); //notify player 2
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_GEN, "");                                      //start generator
+            break;
         }
         else
         {
-            w_logwrite("A: [ERROR] Game is not started yet!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game is not started yet!\n");
+            w_logwrite("A: [ERROR] Game has not started yet!", V_ALL);
+            send_msg(msq_m, sock, sock, CMD_SEND, "[ERROR] Game has not started yet!\n");
             break;
         }
     case GS_GEN:
-        if (dec_cmd == CMD_START || dec_cmd == CMD_JOIN)
+        if (state->p1_sock != sock && state->p2_sock != sock)
         {
-            w_logwrite("A: [DENIED] Game is already started, please wait.", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.\n");
+            w_logwrite("A: [DENIED] You are not a player!", V_ALL);
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are not a player!\n");
             break;
         }
         else
@@ -165,6 +166,13 @@ cmd_t decode(char *cmdstr, int sock)
             send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] Game is already started, please wait.\n");
             break;
         }
+        //maybe command from non-player?
+        if (state->p1_sock != sock && state->p2_sock != sock)
+        {
+            w_logwrite("A: [DENIED] You are not a player!", V_ALL);
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are not a player!\n");
+            break;
+        }
         //game command - shot/save
         if (player == 1 && state->p1_st != PS_INIT || player == 2 && state->p2_st != PS_INIT)
         {
@@ -175,14 +183,14 @@ cmd_t decode(char *cmdstr, int sock)
         //can send commands
         if (dec_cmd == CMD_SHOT && state->turn != player)
         {
-            w_logwrite("A: [DENIED] You are attacking!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are attacking!\n");
+            w_logwrite("A: [DENIED] You are defending!", V_ALL);
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are defending!\n");
             break;
         }
         if (dec_cmd == CMD_SAVE && state->turn == player)
         {
-            w_logwrite("A: [DENIED] You are defending!", V_ALL);
-            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are defending!\n");
+            w_logwrite("A: [DENIED] You are attacking!", V_ALL);
+            send_msg(msq_m, sock, sock, CMD_SEND, "[DENIED] You are attacking!\n");
             break;
         }
         //command is ok, now do it and send it

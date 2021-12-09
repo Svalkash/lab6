@@ -147,11 +147,17 @@ int main(int argc, char *argv[])
                   state->p1_score, state->p2_score);
         send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf);
         send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf);
+        w_logwrite(sndbuf, V_GAME);
         //next turn or next round?
         if (state->turn == state->first_turn) //next turn
             state->turn = state->first_turn == 1 ? 2 : 1;
         else if (state->round < state->min_rounds || state->p1_score == state->p2_score)
         { //next round
+            if (state->round >= state->min_rounds) {
+                send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, "Even count - extra round...");
+                send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, "Even count - extra round...");
+                w_logwrite("E: Even count - extra round...", V_GAME);
+            }
             ++state->round;
             state->turn = state->first_turn;
         }
@@ -159,10 +165,10 @@ int main(int argc, char *argv[])
             gameover = 1; //well, gameover.
         if (gameover)
         {
-            w_logwrite_int("E: Gameover, cleaning mess...", state->turn, V_GAME);
+            w_logwrite("E: Gameover, cleaning mess...", V_GAME);
             print_gameover(sndbuf, 1, 1, state->p1_score, state->p2_score);
             send_msg(msq_m, state->p1_sock, state->p1_sock, CMD_SEND, sndbuf);
-            print_gameover(sndbuf, 2, 2, state->p1_score, state->p2_score);
+            print_gameover(sndbuf, 1, 2, state->p1_score, state->p2_score);
             send_msg(msq_m, state->p2_sock, state->p2_sock, CMD_SEND, sndbuf);
             //clean state
             state->p1_sock = -1;
@@ -183,6 +189,8 @@ int main(int argc, char *argv[])
             state->p2_st = PS_INIT; //ready for commands
         }
     }
+    else
+        send_msg(msq_m, sock, sock, CMD_SEND, "Waiting for the opponent...\n");
     //all good
     semop(shm_sem, sop_unlock, 1); //unlock the struct
     w_logwrite("E: Done, stopping..", V_ALL);

@@ -145,15 +145,14 @@ int main(int argc, char *argv[])
     else
     {
         //writer
-        char snd_msg[BUFSIZE];
+        char snd_msg[BUFSIZE] = "";
 
         do
         {
-            scanf("%[^\n]%*c", snd_msg);
-            //gets(snd_msg);
-            strcat(snd_msg, "\n");
-            printf(snd_msg);
-            printf("size %d\n", strlen(snd_msg));
+            if (!scanf("%[^\n]", snd_msg)) //is command is empty
+                snd_msg[0] = '\0'; //make it empty)
+            strcat(snd_msg, "\n"); //append \n to command
+            scanf("%*c"); //read \n
             if (strstr(snd_msg, "disconnect")) //any disconnect is good, i think
             {
                 printf("Disconnecting...\n");

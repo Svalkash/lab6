@@ -1,2 +1,2 @@
 12345
-logs/log.txt
+logs/log

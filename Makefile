@@ -3,7 +3,7 @@ CFLAGS = -std=gnu99
 _SDEPS = 6s_types.h 6s_lib.h
 BUILD_DIR = .
 SRC_DIR = src
-SERV = $(patsubst %,$(SRC_DIR)/%,$(_SDEPS))
+SDEPS = $(patsubst %,$(SRC_DIR)/%,$(_SDEPS))
 _SERV = 6s_m 6s_a 6s_g 6s_e
 SERV = $(patsubst %,$(BUILD_DIR)/%.exe,$(_SERV))
 CLI = $(BUILD_DIR)/6c.exe
