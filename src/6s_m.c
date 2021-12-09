@@ -420,7 +420,6 @@ void server_init()
 {
     int pid_f;
 
-    srand(time(NULL));
     //create basic structures and MQs
     logwrite("Creating basic structures...", V_ALL);
     CHECK(msq_m = msgget(IPC_PRIVATE, IPC_CREAT | 0666), -1, "Error while creating MQ_m")
